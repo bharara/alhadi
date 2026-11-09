@@ -31,7 +31,13 @@ const visitHref = waLink(`Assalam o Alaikum, I'd like to book a site visit to ${
 const planHref = waLink(`Assalam o Alaikum, please share the latest master plan and available plots for ${p.fullName}.`);
 ---
 
-<Base title={p.seoTitle} description={p.seoDescription} image={og} jsonLd={jsonLd}>
+<Base
+  title={p.seoTitle}
+  description={p.seoDescription}
+  image={og}
+  jsonLd={jsonLd}
+  whatsappText={`Assalam o Alaikum, I'm interested in ${p.fullName}. Please share details.`}
+>
   <header class="hero">
     <Image class="hero-bg" src={p.image} alt="" widths={[768, 1280, 1920]} sizes="100vw" loading="eager" fetchpriority="high" />
     <div class="wrap">

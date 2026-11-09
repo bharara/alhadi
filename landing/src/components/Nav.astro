@@ -6,7 +6,6 @@ import { contact, projects } from '../data/site';
 const current = Astro.url.pathname;
 const leftLinks = projects.map((p) => ({ href: `/${p.slug}/`, label: p.name }));
 const rightLinks = [
-  { href: '/#group', label: 'The Group' },
   { href: '#contact', label: 'Contact' },
 ];
 ---

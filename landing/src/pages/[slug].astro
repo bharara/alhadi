@@ -5,6 +5,7 @@ import Base from '../layouts/Base.astro';
 import Nav from '../components/Nav.astro';
 import LeadForm from '../components/LeadForm.astro';
 import Faq from '../components/Faq.astro';
+import Gallery from '../components/Gallery.astro';
 import Footer from '../components/Footer.astro';
 import logo from '../assets/logo.png';
 import { contact, enquiryOptions, projects, statusLabel, waLink, type Project } from '../data/site';
@@ -20,7 +21,10 @@ const { project: p } = Astro.props;
 const site = Astro.site!;
 const og = `/og/${p.slug}.jpg`;
 const logoUrl = new URL((await getImage({ src: logo, width: 360, format: 'png' })).src, site).href;
-const jsonLd = projectGraph(p, site, logoUrl, new URL(og, site).href);
+const galleryUrls = await Promise.all(
+  (p.gallery ?? []).map(async (g) => new URL((await getImage({ src: g.image, width: 1200, format: 'webp' })).src, site).href),
+);
+const jsonLd = projectGraph(p, site, logoUrl, new URL(og, site).href, galleryUrls);
 
 const others = projects.filter((x) => x.slug !== p.slug);
 const listing = p.kind === 'Commercial' ? 'Commercial plots for sale' : 'Plots for sale';
@@ -94,6 +98,14 @@ const planHref = waLink(`Assalam o Alaikum, please share the latest master plan 
           </div>
         </aside>
       </div>
+      {
+        p.gallery && (
+          <div class="wrap gallery" id="gallery">
+            <h2 class="sub">{p.name} photo gallery</h2>
+            <Gallery items={p.gallery} title={`${p.fullName} photo gallery`} />
+          </div>
+        )
+      }
     </section>
 
     <section class="sec alt" id="plots" aria-labelledby="plots-title">
@@ -373,6 +385,13 @@ const planHref = waLink(`Assalam o Alaikum, please share the latest master plan 
     grid-template-columns: 1.4fr 1fr;
     gap: 80px;
     align-items: start;
+  }
+  .gallery {
+    margin-top: 90px;
+  }
+  .sub {
+    font-size: clamp(26px, 3vw, 36px);
+    margin-bottom: 26px;
   }
   .card {
     background: var(--card);
@@ -659,6 +678,9 @@ const planHref = waLink(`Assalam o Alaikum, please share the latest master plan 
     .faqs {
       grid-template-columns: 1fr;
       gap: 40px;
+    }
+    .gallery {
+      margin-top: 56px;
     }
     .card {
       position: static;

@@ -47,7 +47,7 @@ export function homeGraph(site: URL, logo: string) {
   };
 }
 
-export function projectGraph(p: Project, site: URL, logo: string, image: string) {
+export function projectGraph(p: Project, site: URL, logo: string, image: string, gallery: string[] = []) {
   const url = new URL(`/${p.slug}/`, site).href;
   const mapUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(p.mapQuery)}`;
   return {
@@ -72,7 +72,7 @@ export function projectGraph(p: Project, site: URL, logo: string, image: string)
         name: `${p.fullName}, Faisalabad`,
         description: p.summary,
         url,
-        image: [image, new URL(p.plan.full, site).href],
+        image: [image, ...gallery, new URL(p.plan.full, site).href],
         hasMap: mapUrl,
         telephone: contact.phoneTel,
         address: {

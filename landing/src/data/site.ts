@@ -10,6 +10,13 @@ import sitaraGate from '../assets/sitara-gate.jpg';
 import planSitara from '../assets/plan-sitara-villas.jpg';
 import planAbdullah from '../assets/plan-abdullah-gardens.jpg';
 import planCityWalk from '../assets/plan-city-walk.jpg';
+import agGate from '../assets/abdullah/gate.jpg';
+import ag1 from '../assets/abdullah/gallery-1.jpg';
+import ag2 from '../assets/abdullah/gallery-2.jpg';
+import ag3 from '../assets/abdullah/gallery-3.jpg';
+import ag4 from '../assets/abdullah/gallery-4.jpg';
+import ag5 from '../assets/abdullah/gallery-5.jpg';
+import ag6 from '../assets/abdullah/gallery-6.jpg';
 
 /** Images used directly by section components (project and group images live on their records). */
 export const images = { villaTwin, mansion };
@@ -57,6 +64,11 @@ export interface Faq {
   a: string;
 }
 
+export interface GalleryImage {
+  image: ImageMetadata;
+  alt: string;
+}
+
 export interface Project {
   slug: string;
   name: string;
@@ -92,6 +104,8 @@ export interface Project {
   };
   locationNotes: string[];
   faqs: Faq[];
+  /** Real project photography, shown in the page gallery. */
+  gallery?: GalleryImage[];
 }
 
 export const statusLabel: Record<ProjectStatus, string> = {
@@ -199,8 +213,8 @@ export const projects: Project[] = [
     kind: 'Residential & Commercial',
     summary:
       'A green, family-first community on Main Canal Road near Kalma Chowk, with plots from 5 Marla to 7 Kanal, fourteen parks and a tennis court.',
-    image: villaWide,
-    imageAlt: 'Modern two-storey home with a wood and stone facade, typical of Abdullah Gardens',
+    image: agGate,
+    imageAlt: 'Main entrance gate of Abdullah Gardens on Canal Road, Faisalabad',
     specs: [
       { label: 'Location', value: 'Main Canal Road, Kalma Chowk' },
       { label: 'Plot sizes', value: '5 Marla – 7 Kanal' },
@@ -216,7 +230,7 @@ export const projects: Project[] = [
     overview: [
       'Abdullah Gardens is an established housing community on Main Canal Road near Kalma Chowk, Faisalabad. Best Builders & Developers sells plots here and keeps an office on site.',
       'The plan suits a wide range of buyers. There are 5–12 Marla plots for a first home, 13–20 Marla plots for growing families, and 1.5–7 Kanal plots for large villas. Commercial plots sit along the main roads and around the commercial centre.',
-      'Green space is the community’s strongest point. The master plan has fourteen numbered parks, a tennis court and several neighbourhood mosques, including Masjid Siraj, Masjid Zeenat and Masjid Abu Ubaida. It also has its own commercial centre and a WASA facility. The Ayesha Block sits at the Canal Road end, by the main entrance gate.',
+      'Green space is the community’s strongest point. The master plan has fourteen numbered parks, a tennis court and several neighbourhood mosques, including Masjid Siraj, Masjid Zeenat and Masjid Abu Ubaida. It also has its own commercial centre and a WASA facility. The Ayesha Block sits at the Canal Road end, by the main entrance gate, and the Green Enclave Block adds contemporary homes around its own landscaped park.',
     ],
     address: { street: 'Main Canal Road, Abdullah Gardens, Kalma Chowk', area: 'Faisalabad' },
     mapQuery: 'Abdullah Gardens, Canal Road, Faisalabad',
@@ -278,6 +292,15 @@ export const projects: Project[] = [
         q: 'How do I arrange a site visit to Abdullah Gardens?',
         a: 'Call or WhatsApp 0311-073-1111. Site visits are free, run seven days a week, and start from the Best Builders office in Abdullah Gardens.',
       },
+    ],
+    gallery: [
+      { image: agGate, alt: 'Main entrance gate of Abdullah Gardens on Canal Road, Faisalabad' },
+      { image: ag6, alt: 'Tree-lined Canal Road approach to Abdullah Gardens, Faisalabad' },
+      { image: ag1, alt: 'Palm-lined landscaped road in the Premium Block, Abdullah Gardens' },
+      { image: ag2, alt: 'Wide avenue with street lights and green belts at Abdullah Gardens' },
+      { image: ag3, alt: 'Contemporary homes in the Green Enclave Block, Abdullah Gardens' },
+      { image: ag4, alt: 'Aerial view of the park and gazebo in the Green Enclave Block, Abdullah Gardens' },
+      { image: ag5, alt: 'Green Enclave Block entrance at Abdullah Gardens, Faisalabad' },
     ],
   },
   {

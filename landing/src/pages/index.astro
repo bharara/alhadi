@@ -1,4 +1,5 @@
 ---
+import { getImage } from 'astro:assets';
 import Base from '../layouts/Base.astro';
 import Hero from '../components/Hero.astro';
 import StatsTicker from '../components/StatsTicker.astro';
@@ -6,16 +7,22 @@ import ProjectPanel from '../components/ProjectPanel.astro';
 import Film from '../components/Film.astro';
 import Group from '../components/Group.astro';
 import Footer from '../components/Footer.astro';
+import logo from '../assets/logo.png';
 import { group, projects, stats } from '../data/site';
+import { homeGraph } from '../data/schema';
+
+const site = Astro.site!;
+const logoUrl = new URL((await getImage({ src: logo, width: 360, format: 'png' })).src, site).href;
 ---
 
 <Base
-  title="Best Builders & Developers · Premium Plots, Villas & Commercial in Faisalabad"
-  description="Gated communities, villas and commercial landmarks on Faisalabad's Canal corridor: Sitara Villas Best Block, Abdullah Gardens and City Walk. Call 0311-073-1111."
+  title="Best Builders & Developers | Plots in Sitara Villas, Abdullah Gardens & City Walk Faisalabad"
+  description="Residential and commercial plots on Faisalabad's Canal corridor: Sitara Villas Best Block (1–4 Kanal), Abdullah Gardens (5 Marla–7 Kanal) and City Walk commercial on Canal Road. Call 0311-073-1111."
+  jsonLd={homeGraph(site, logoUrl)}
 >
   <Hero />
   <main>
-    <StatsTicker stats={stats} availability="Plots available now in Sitara Villas & Abdullah Gardens" />
+    <StatsTicker stats={stats} availability="Plots available now in Sitara Villas, Abdullah Gardens & City Walk" />
     <div id="projects">
       {projects.map((project, index) => <ProjectPanel project={project} index={index} />)}
     </div>

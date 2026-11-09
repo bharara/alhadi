@@ -2,7 +2,8 @@
 import { defineConfig } from 'astro/config';
 
 export default defineConfig({
-  site: 'https://best-builders-developers.pages.dev',
+  site: 'https://bestbuilderdeveloper.com',
   output: 'static',
-  build: { inlineStylesheets: 'auto' },
+  trailingSlash: 'ignore',
+  build: { inlineStylesheets: 'auto', format: 'directory' },
 });

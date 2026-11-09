@@ -1,0 +1,685 @@
+---
+import type { GetStaticPaths } from 'astro';
+import { Image, getImage } from 'astro:assets';
+import Base from '../layouts/Base.astro';
+import Nav from '../components/Nav.astro';
+import LeadForm from '../components/LeadForm.astro';
+import Faq from '../components/Faq.astro';
+import Footer from '../components/Footer.astro';
+import logo from '../assets/logo.png';
+import { contact, enquiryOptions, projects, statusLabel, waLink, type Project } from '../data/site';
+import { projectGraph } from '../data/schema';
+
+export const getStaticPaths = (() => projects.map((project) => ({ params: { slug: project.slug }, props: { project } }))) satisfies GetStaticPaths;
+
+interface Props {
+  project: Project;
+}
+
+const { project: p } = Astro.props;
+const site = Astro.site!;
+const og = `/og/${p.slug}.jpg`;
+const logoUrl = new URL((await getImage({ src: logo, width: 360, format: 'png' })).src, site).href;
+const jsonLd = projectGraph(p, site, logoUrl, new URL(og, site).href);
+
+const others = projects.filter((x) => x.slug !== p.slug);
+const listing = p.kind === 'Commercial' ? 'Commercial plots for sale' : 'Plots for sale';
+const mapEmbed = `https://maps.google.com/maps?q=${encodeURIComponent(p.mapQuery)}&z=14&output=embed`;
+const directions = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(p.mapQuery)}`;
+const pricesHref = waLink(`Assalam o Alaikum, I'm interested in ${p.fullName}. Please share today's prices and available plots.`);
+const visitHref = waLink(`Assalam o Alaikum, I'd like to book a site visit to ${p.fullName}.`);
+const planHref = waLink(`Assalam o Alaikum, please share the latest master plan and available plots for ${p.fullName}.`);
+---
+
+<Base title={p.seoTitle} description={p.seoDescription} image={og} jsonLd={jsonLd}>
+  <header class="hero">
+    <Image class="hero-bg" src={p.image} alt="" widths={[768, 1280, 1920]} sizes="100vw" loading="eager" fetchpriority="high" />
+    <div class="wrap">
+      <Nav />
+      <div class="copy">
+        <nav class="crumbs" aria-label="Breadcrumb">
+          <ol>
+            <li><a href="/">Home</a></li>
+            <li aria-current="page">{p.fullName}</li>
+          </ol>
+        </nav>
+        <span class="badge">{statusLabel[p.status]}</span>
+        <h1>
+          {p.title[0]}<br /><span class="gold">{p.title[1]}</span>
+          <small>{listing} · {p.specs[0]?.value}, Faisalabad</small>
+        </h1>
+        <p class="tagline">{p.tagline}</p>
+        <div class="row">
+          <a class="btn btn-gold" href={pricesHref} target="_blank" rel="noopener">Get today's prices</a>
+          <a class="btn btn-outline" href={`tel:${contact.phoneTel}`}>Call {contact.phoneDisplay}</a>
+        </div>
+      </div>
+    </div>
+    <dl class="facts wrap">
+      {
+        p.specs.map((s) => (
+          <div>
+            <dt>{s.label}</dt>
+            <dd>{s.value}</dd>
+          </div>
+        ))
+      }
+    </dl>
+  </header>
+
+  <main>
+    <section class="sec" id="overview" aria-labelledby="overview-title">
+      <div class="wrap two">
+        <div>
+          <span class="kicker">Overview</span>
+          <h2 id="overview-title">About<br /><span class="gold">{p.fullName}</span></h2>
+          {p.overview.map((para) => <p class="lead">{para}</p>)}
+        </div>
+        <aside class="card" aria-label={`${p.name} contact`}>
+          <span class="kicker">Talk to sales</span>
+          <h3>{p.name} sales office</h3>
+          <p class="mut">{p.address.street}, {p.address.area}</p>
+          <ul class="phones">
+            {p.sitePhones.map((n) => <li><a href={`tel:+92${n.replace(/-/g, '').slice(1)}`}>{n}</a></li>)}
+          </ul>
+          <div class="stack">
+            <a class="btn btn-gold" href={visitHref} target="_blank" rel="noopener">Book a free site visit</a>
+            <a class="btn btn-outline" href={pricesHref} target="_blank" rel="noopener">WhatsApp for prices</a>
+          </div>
+        </aside>
+      </div>
+    </section>
+
+    <section class="sec alt" id="plots" aria-labelledby="plots-title">
+      <div class="wrap">
+        <span class="kicker">Plot sizes</span>
+        <h2 id="plots-title">Plots in<br /><span class="gold">{p.name}</span></h2>
+        <div class="plots">
+          {
+            p.plots.map((plot) => (
+              <article class="plot">
+                <span class="mut tag">{plot.type}</span>
+                <h3>{plot.size}</h3>
+                <p class="mut">{plot.note}</p>
+              </article>
+            ))
+          }
+        </div>
+        <p class="note">Plots available today change daily. <a href={pricesHref} target="_blank" rel="noopener">Ask for the current list →</a></p>
+      </div>
+    </section>
+
+    <section class="sec" id="master-plan" aria-labelledby="plan-title">
+      <div class="wrap plan">
+        <a class="plan-img" href={p.plan.full} target="_blank" rel="noopener" aria-label={`Open the full-size ${p.name} master plan`}>
+          <Image src={p.plan.image} alt={p.plan.alt} widths={[600, 900, 1300]} sizes="(max-width: 900px) 100vw, 55vw" />
+          <span class="zoom">Tap to zoom ⤢</span>
+        </a>
+        <div>
+          <span class="kicker">Master plan</span>
+          <h2 id="plan-title">{p.name}<br /><span class="gold">master plan</span></h2>
+          <p class="lead">
+            The official {p.fullName} layout plan, with plot numbers, road widths and plot categories. Open the full-size map
+            to zoom in on a block, or ask us which plots are available right now.
+          </p>
+          <ul class="legend">
+            {p.plan.legend.map((l) => <li><i style={`background:${l.color}`}></i>{l.label}</li>)}
+          </ul>
+          <div class="row">
+            <a class="btn btn-gold" href={p.plan.full} target="_blank" rel="noopener">Open full-size map</a>
+            {p.plan.pdf && <a class="btn btn-outline" href={p.plan.pdf} download>Download PDF</a>}
+            {!p.plan.pdf && <a class="btn btn-outline" href={planHref} target="_blank" rel="noopener">Get it on WhatsApp</a>}
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="sec alt" id="amenities" aria-labelledby="amenities-title">
+      <div class="wrap">
+        <span class="kicker">Features</span>
+        <h2 id="amenities-title">Amenities &amp;<br /><span class="gold">features</span></h2>
+        <ul class="amen">
+          {
+            p.amenities.map((a, i) => (
+              <li>
+                <span class="n">{String(i + 1).padStart(2, '0')}</span>
+                <h3>{a.title}</h3>
+                <p class="mut">{a.text}</p>
+              </li>
+            ))
+          }
+        </ul>
+      </div>
+    </section>
+
+    <section class="sec" id="location" aria-labelledby="location-title">
+      <div class="wrap two loc">
+        <div>
+          <span class="kicker">Location</span>
+          <h2 id="location-title">Where is<br /><span class="gold">{p.name}?</span></h2>
+          <address>
+            <b>{p.fullName}</b><br />
+            {p.address.street}<br />
+            {p.address.area}, Punjab, Pakistan
+          </address>
+          <ul class="ticks">{p.locationNotes.map((n) => <li>{n}</li>)}</ul>
+          <div class="row">
+            <a class="btn btn-gold" href={directions} target="_blank" rel="noopener">Get directions</a>
+            <a class="btn btn-outline" href={visitHref} target="_blank" rel="noopener">Book a site visit</a>
+          </div>
+        </div>
+        <div class="map">
+          <iframe
+            src={mapEmbed}
+            title={`Map showing the location of ${p.fullName}, Faisalabad`}
+            loading="lazy"
+            referrerpolicy="no-referrer-when-downgrade"
+            allowfullscreen></iframe>
+        </div>
+      </div>
+    </section>
+
+    <section class="sec alt enquire" aria-label={`Get prices for ${p.fullName}`}>
+      <div class="wrap">
+        <span class="kicker">Today's prices</span>
+        <h2>Get {p.name}<br /><span class="gold">prices today</span></h2>
+      </div>
+      <div class="form-wrap">
+        <LeadForm options={enquiryOptions} selected={p.fullName} inline />
+      </div>
+    </section>
+
+    <section class="sec" id="faq" aria-labelledby="faq-title">
+      <div class="wrap two faqs">
+        <div>
+          <span class="kicker">FAQ</span>
+          <h2 id="faq-title">{p.name}<br /><span class="gold">questions</span></h2>
+          <p class="mut">
+            Still unsure? <a class="link" href={`tel:${contact.phoneTel}`}>Call {contact.phoneDisplay}</a> and we'll answer it in a minute.
+          </p>
+        </div>
+        <Faq items={p.faqs} />
+      </div>
+    </section>
+
+    <section class="sec alt" aria-labelledby="more-title">
+      <div class="wrap">
+        <span class="kicker">More projects</span>
+        <h2 id="more-title">Also from<br /><span class="gold">Best Builders</span></h2>
+        <div class="more">
+          {
+            others.map((o) => (
+              <a class="mcard" href={`/${o.slug}/`}>
+                <Image src={o.image} alt={o.imageAlt} widths={[480, 800]} sizes="(max-width: 900px) 100vw, 50vw" />
+                <div class="t">
+                  <span class="kicker">{statusLabel[o.status]} · {o.specs[0]?.value}</span>
+                  <h3>{o.fullName}</h3>
+                  <p>{o.summary}</p>
+                </div>
+              </a>
+            ))
+          }
+        </div>
+      </div>
+    </section>
+  </main>
+  <Footer />
+</Base>
+
+<style>
+  .hero {
+    position: relative;
+    overflow: hidden;
+    min-height: 860px;
+    display: flex;
+    flex-direction: column;
+  }
+  .hero-bg {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+  .hero::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    background: linear-gradient(180deg, rgba(7, 7, 7, 0.85) 0%, rgba(7, 7, 7, 0.4) 35%, rgba(7, 7, 7, 0.75) 75%, #070707 100%);
+  }
+  .hero > .wrap {
+    position: relative;
+    z-index: 3;
+    width: 100%;
+  }
+  .copy {
+    margin-top: 70px;
+    max-width: 1040px;
+  }
+  .crumbs ol {
+    display: flex;
+    gap: 10px;
+    list-style: none;
+    font-size: 13px;
+    color: var(--mut);
+    margin-bottom: 26px;
+  }
+  .crumbs li + li::before {
+    content: '/';
+    margin-right: 10px;
+    color: var(--gold);
+  }
+  .crumbs a:hover {
+    color: var(--gold-2);
+  }
+  .badge {
+    display: inline-block;
+    font-size: 12px;
+    font-weight: 700;
+    padding: 7px 12px;
+    border-radius: 3px;
+    background: var(--grad);
+    color: #120e07;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+  h1 {
+    font-weight: 800;
+    font-size: clamp(32px, 9.4vw, 100px);
+    line-height: 0.88;
+    margin: 22px 0 22px;
+  }
+  h1 small {
+    display: block;
+    margin-top: 22px;
+    font-family: var(--sans);
+    font-size: clamp(13px, 1.4vw, 15px);
+    font-weight: 500;
+    letter-spacing: 0.22em;
+    color: var(--gold-2);
+    line-height: 1.5;
+  }
+  .tagline {
+    font-size: 19px;
+    line-height: 1.6;
+    color: #d4cdc0;
+    max-width: 620px;
+  }
+  .row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-top: 32px;
+  }
+  .facts {
+    position: relative;
+    z-index: 3;
+    margin-top: auto;
+    padding-top: 70px;
+    padding-bottom: 40px;
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    width: 100%;
+  }
+  .facts div {
+    border-top: 1px solid rgba(243, 220, 174, 0.3);
+    padding: 18px 20px 0 0;
+  }
+  dt {
+    font-size: 11px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--mut);
+  }
+  dd {
+    margin-top: 6px;
+    font-weight: 600;
+    font-size: 16px;
+  }
+
+  .sec {
+    padding: 120px 0;
+    border-top: 1px solid var(--line);
+  }
+  .sec.alt {
+    background: var(--bg-2);
+  }
+  h2 {
+    font-size: clamp(40px, 5vw, 64px);
+    line-height: 0.95;
+    margin: 14px 0 30px;
+  }
+  .lead {
+    color: #cfc8bb;
+    font-size: 17px;
+    line-height: 1.75;
+    max-width: 640px;
+  }
+  .lead + .lead {
+    margin-top: 18px;
+  }
+  .mut {
+    color: var(--mut);
+  }
+  .two {
+    display: grid;
+    grid-template-columns: 1.4fr 1fr;
+    gap: 80px;
+    align-items: start;
+  }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 36px;
+    position: sticky;
+    top: 30px;
+  }
+  .card h3 {
+    font-size: 26px;
+    margin: 12px 0 8px;
+  }
+  .phones {
+    list-style: none;
+    margin: 22px 0;
+    border-top: 1px solid var(--line);
+  }
+  .phones li {
+    border-bottom: 1px solid var(--line);
+  }
+  .phones a {
+    display: block;
+    padding: 14px 0;
+    font-family: var(--disp);
+    font-size: 22px;
+    color: var(--gold-2);
+  }
+  .stack {
+    display: grid;
+    gap: 10px;
+  }
+
+  .plots {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+  }
+  .plot {
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 28px 26px 30px;
+    background: var(--bg);
+  }
+  .plot h3 {
+    font-size: 30px;
+    margin: 14px 0 10px;
+    background: var(--grad);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+  .tag {
+    font-size: 11px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+  }
+  .plot p {
+    font-size: 14px;
+    line-height: 1.6;
+  }
+  .note {
+    margin-top: 26px;
+    color: var(--mut);
+    font-size: 14px;
+  }
+  .note a,
+  .link {
+    color: var(--gold-2);
+  }
+
+  .plan {
+    display: grid;
+    grid-template-columns: 1.1fr 1fr;
+    gap: 80px;
+    align-items: center;
+  }
+  .plan-img {
+    position: relative;
+    display: block;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    overflow: hidden;
+    background: #111;
+  }
+  .plan-img img {
+    width: 100%;
+    height: auto;
+  }
+  .zoom {
+    position: absolute;
+    right: 14px;
+    bottom: 14px;
+    background: rgba(7, 7, 7, 0.8);
+    border: 1px solid rgba(243, 220, 174, 0.3);
+    color: var(--gold-2);
+    font-size: 13px;
+    padding: 8px 12px;
+    border-radius: 4px;
+  }
+  .legend {
+    list-style: none;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px 20px;
+    margin-top: 30px;
+    font-size: 14px;
+    color: #cfc8bb;
+  }
+  .legend li {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .legend i {
+    width: 16px;
+    height: 16px;
+    border-radius: 3px;
+    flex: none;
+  }
+
+  .amen {
+    list-style: none;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    border-top: 1px solid var(--line);
+    border-left: 1px solid var(--line);
+  }
+  .amen li {
+    padding: 34px 30px;
+    border-right: 1px solid var(--line);
+    border-bottom: 1px solid var(--line);
+  }
+  .n {
+    font-family: var(--disp);
+    font-weight: 800;
+    font-size: 40px;
+    color: transparent;
+    -webkit-text-stroke: 1px rgba(243, 220, 174, 0.55);
+  }
+  .amen h3 {
+    font-size: 20px;
+    margin: 14px 0 8px;
+  }
+  .amen p {
+    font-size: 14px;
+    line-height: 1.6;
+  }
+
+  .loc {
+    grid-template-columns: 1fr 1.3fr;
+    align-items: center;
+  }
+  address {
+    font-style: normal;
+    line-height: 1.7;
+    color: #cfc8bb;
+  }
+  address b {
+    color: var(--txt);
+  }
+  .ticks {
+    list-style: none;
+    margin-top: 22px;
+    display: grid;
+    gap: 10px;
+    color: #cfc8bb;
+    font-size: 15px;
+  }
+  .ticks li::before {
+    content: '✦';
+    color: var(--gold);
+    margin-right: 10px;
+  }
+  .map {
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    overflow: hidden;
+    aspect-ratio: 4 / 3;
+    background: var(--card);
+  }
+  .map iframe {
+    width: 100%;
+    height: 100%;
+    border: 0;
+    filter: grayscale(0.3) contrast(1.05);
+  }
+
+  .enquire h2 {
+    margin-bottom: 36px;
+  }
+  .form-wrap {
+    padding: 0 var(--gutter);
+  }
+
+  .faqs {
+    grid-template-columns: 1fr 1.6fr;
+  }
+
+  .more {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+  }
+  .mcard {
+    position: relative;
+    height: 420px;
+    border-radius: 10px;
+    overflow: hidden;
+    border: 1px solid var(--line);
+  }
+  .mcard img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    opacity: 0.55;
+    transition: opacity 0.4s ease, transform 1s ease;
+  }
+  .mcard:hover img {
+    opacity: 0.7;
+    transform: scale(1.03);
+  }
+  .mcard::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(0deg, rgba(7, 7, 7, 0.9), transparent 65%);
+  }
+  .mcard .t {
+    position: absolute;
+    z-index: 1;
+    left: 30px;
+    right: 30px;
+    bottom: 28px;
+  }
+  .mcard h3 {
+    font-size: 34px;
+    margin: 10px 0 8px;
+  }
+  .mcard p {
+    color: #cfc8bb;
+    font-size: 14px;
+    line-height: 1.55;
+    max-width: 460px;
+  }
+
+  @media (max-width: 1000px) {
+    .plots {
+      grid-template-columns: 1fr 1fr;
+    }
+    .amen {
+      grid-template-columns: 1fr 1fr;
+    }
+  }
+
+  @media (max-width: 900px) {
+    .hero {
+      min-height: 0;
+    }
+    .copy {
+      margin-top: 70px;
+    }
+    .tagline {
+      font-size: 17px;
+    }
+    .row .btn {
+      flex: 1;
+    }
+    .facts {
+      grid-template-columns: 1fr 1fr;
+      gap: 0 16px;
+      padding-top: 48px;
+      padding-bottom: 28px;
+    }
+    .facts div {
+      padding-bottom: 16px;
+    }
+    .sec {
+      padding: 72px 0;
+    }
+    .two,
+    .plan,
+    .loc,
+    .faqs {
+      grid-template-columns: 1fr;
+      gap: 40px;
+    }
+    .card {
+      position: static;
+      padding: 28px 22px;
+    }
+    .more {
+      grid-template-columns: 1fr;
+    }
+    .mcard {
+      height: 340px;
+    }
+    .mcard .t {
+      left: 22px;
+      right: 22px;
+    }
+  }
+
+  @media (max-width: 560px) {
+    .plots,
+    .amen {
+      grid-template-columns: 1fr;
+    }
+    .amen li {
+      padding: 26px 22px;
+    }
+    .legend {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>

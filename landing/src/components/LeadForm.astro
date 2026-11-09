@@ -3,12 +3,16 @@ import { contact } from '../data/site';
 
 interface Props {
   options: string[];
+  /** Pre-selected project, e.g. on a project landing page. */
+  selected?: string;
+  /** Render in normal flow instead of floating over the hero. */
+  inline?: boolean;
 }
 
-const { options } = Astro.props;
+const { options, selected, inline = false } = Astro.props;
 ---
 
-<form class="leadbar" id="lead-form" data-whatsapp={contact.whatsapp} aria-labelledby="lead-title">
+<form class:list={['leadbar', { inline }]} id="lead-form" data-whatsapp={contact.whatsapp} aria-labelledby="lead-title">
   <div class="title">
     <b id="lead-title">Get today's prices</b>
     <small>We'll reply on WhatsApp</small>
@@ -32,7 +36,7 @@ const { options } = Astro.props;
   <label class="field">
     <span>Project</span>
     <select name="project">
-      {options.map((o) => <option value={o}>{o}</option>)}
+      {options.map((o) => <option value={o} selected={o === selected}>{o}</option>)}
     </select>
   </label>
   <button class="btn btn-gold submit" type="submit">Request Callback →</button>
@@ -127,6 +131,13 @@ const { options } = Astro.props;
     font-size: 15px;
   }
 
+  .leadbar.inline {
+    position: relative;
+    left: auto;
+    right: auto;
+    bottom: auto;
+  }
+
   @media (max-width: 1100px) {
     .leadbar {
       grid-template-columns: 1fr 1fr;
@@ -155,6 +166,9 @@ const { options } = Astro.props;
     }
     .field {
       border-right: 0;
+    }
+    .leadbar.inline {
+      margin: 0;
     }
   }
 </style>

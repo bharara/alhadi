@@ -1,0 +1,95 @@
+---
+import type { Faq } from '../data/site';
+
+interface Props {
+  items: Faq[];
+}
+
+const { items } = Astro.props;
+---
+
+<div class="faq">
+  {
+    items.map((f, i) => (
+      <details open={i === 0}>
+        <summary>
+          <h3>{f.q}</h3>
+          <span class="pm" aria-hidden="true" />
+        </summary>
+        <p>{f.a}</p>
+      </details>
+    ))
+  }
+</div>
+
+<style>
+  .faq {
+    border-top: 1px solid var(--line);
+  }
+  details {
+    border-bottom: 1px solid var(--line);
+  }
+  summary {
+    list-style: none;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 20px;
+    padding: 24px 0;
+    cursor: pointer;
+  }
+  summary::-webkit-details-marker {
+    display: none;
+  }
+  h3 {
+    font-family: var(--sans);
+    text-transform: none;
+    letter-spacing: 0;
+    font-size: 18px;
+    font-weight: 600;
+    line-height: 1.4;
+  }
+  summary:hover h3 {
+    color: var(--gold-2);
+  }
+  .pm {
+    position: relative;
+    flex: none;
+    width: 30px;
+    height: 30px;
+    border: 1px solid rgba(243, 220, 174, 0.35);
+    border-radius: 50%;
+  }
+  .pm::before,
+  .pm::after {
+    content: '';
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 11px;
+    height: 1.5px;
+    background: var(--gold-2);
+    transform: translate(-50%, -50%);
+    transition: transform 0.2s ease;
+  }
+  .pm::after {
+    transform: translate(-50%, -50%) rotate(90deg);
+  }
+  details[open] .pm::after {
+    transform: translate(-50%, -50%) rotate(0deg);
+  }
+  p {
+    color: #cfc8bb;
+    line-height: 1.75;
+    padding: 0 50px 26px 0;
+    font-size: 16px;
+  }
+  @media (max-width: 560px) {
+    h3 {
+      font-size: 16px;
+    }
+    p {
+      padding-right: 0;
+    }
+  }
+</style>

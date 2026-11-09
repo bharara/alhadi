@@ -1,7 +1,7 @@
 ---
 import { Image } from 'astro:assets';
 import logo from '../assets/logo.png';
-import { contact, footerProjects } from '../data/site';
+import { contact, projects } from '../data/site';
 
 const year = new Date().getFullYear();
 const wa = `https://wa.me/${contact.whatsapp}`;
@@ -25,12 +25,12 @@ const wa = `https://wa.me/${contact.whatsapp}`;
       <div><Image src={logo} alt="Best Builders & Developers" width={190} height={160} /></div>
       <div>
         <h5>Projects</h5>
-        <ul>{footerProjects.map((p) => <li>{p}</li>)}</ul>
+        <ul>{projects.map((p) => <li><a href={`/${p.slug}/`}>{p.fullName}</a></li>)}</ul>
       </div>
       <div>
         <h5>Company</h5>
         <ul>
-          <li><a href="#group">The Group</a></li>
+          <li><a href="/#group">The Group</a></li>
           <li><a href={contact.group} target="_blank" rel="noopener">Best Builders Interiors</a></li>
           <li><a href={contact.group} target="_blank" rel="noopener">Best Builders Homes</a></li>
         </ul>

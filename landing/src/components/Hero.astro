@@ -1,18 +1,8 @@
 ---
 import { Image } from 'astro:assets';
-import logo from '../assets/logo.png';
-import { contact, enquiryOptions, images } from '../data/site';
+import { enquiryOptions, images } from '../data/site';
 import LeadForm from './LeadForm.astro';
-
-const leftLinks = [
-  { href: '#projects', label: 'Projects' },
-  { href: '#projects', label: 'Plots' },
-  { href: '#city-walk', label: 'Commercial' },
-];
-const rightLinks = [
-  { href: '#group', label: 'The Group' },
-  { href: '#contact', label: 'Contact' },
-];
+import Nav from './Nav.astro';
 ---
 
 <header class="hero">
@@ -26,32 +16,14 @@ const rightLinks = [
     fetchpriority="high"
   />
   <div class="wrap">
-    <nav aria-label="Main">
-      <ul class="links">
-        {leftLinks.map((l) => <li><a href={l.href}>{l.label}</a></li>)}
-      </ul>
-      <a class="logo" href="/" aria-label="Best Builders & Developers home">
-        <Image src={logo} alt="Best Builders & Developers" width={180} height={152} loading="eager" />
-      </a>
-      <ul class="links right">
-        {rightLinks.map((l) => <li><a href={l.href}>{l.label}</a></li>)}
-        <li><a class="phone" href={`tel:${contact.phoneTel}`}>{contact.phoneDisplay}</a></li>
-      </ul>
-      <details class="menu">
-        <summary aria-label="Open menu"><span></span><span></span></summary>
-        <div class="menu-panel">
-          {[...leftLinks, ...rightLinks].map((l) => <a href={l.href}>{l.label}</a>)}
-          <a class="btn btn-gold" href={`tel:${contact.phoneTel}`}>Call {contact.phoneDisplay}</a>
-        </div>
-      </details>
-    </nav>
+    <Nav />
 
     <div class="copy">
       <span class="kicker">Faisalabad · Real estate &amp; development</span>
       <h1>Live at<br /><span class="gold">the best</span><br />address.</h1>
       <p>
-        Premium plots, villas and commercial spaces along Faisalabad's Canal corridor, from a group that designs,
-        builds and furnishes.
+        Residential plots at Sitara Villas and Abdullah Gardens, and commercial plots at City Walk, all on Faisalabad's
+        Canal corridor. Sold by a group that also designs, builds and furnishes.
       </p>
     </div>
   </div>
@@ -92,37 +64,6 @@ const rightLinks = [
     position: relative;
     z-index: 3;
   }
-  nav {
-    display: grid;
-    grid-template-columns: 1fr auto 1fr;
-    align-items: center;
-    padding: 24px 0;
-  }
-  .links {
-    display: flex;
-    gap: 32px;
-    list-style: none;
-    font-size: 13px;
-    letter-spacing: 0.14em;
-    text-transform: uppercase;
-    color: #d8d2c6;
-  }
-  .links a:hover {
-    color: var(--gold-2);
-  }
-  .links.right {
-    justify-content: flex-end;
-  }
-  .phone {
-    color: var(--gold-2);
-  }
-  .logo img {
-    height: 76px;
-    width: auto;
-  }
-  .menu {
-    display: none;
-  }
   .copy {
     margin-top: 70px;
   }
@@ -145,64 +86,6 @@ const rightLinks = [
       min-height: 0;
       padding-bottom: 0;
       text-align: left;
-    }
-    nav {
-      grid-template-columns: auto 1fr;
-      padding: 16px 0;
-    }
-    .links {
-      display: none;
-    }
-    .logo img {
-      height: 54px;
-    }
-    .menu {
-      display: block;
-      justify-self: end;
-      position: relative;
-    }
-    .menu summary {
-      list-style: none;
-      width: 44px;
-      height: 44px;
-      border: 1px solid var(--line);
-      border-radius: 6px;
-      display: grid;
-      place-content: center;
-      gap: 6px;
-      cursor: pointer;
-      background: rgba(7, 7, 7, 0.5);
-    }
-    .menu summary::-webkit-details-marker {
-      display: none;
-    }
-    .menu summary span {
-      display: block;
-      width: 18px;
-      height: 1.5px;
-      background: var(--gold-2);
-    }
-    .menu-panel {
-      position: absolute;
-      right: 0;
-      top: 54px;
-      width: min(280px, calc(100vw - 40px));
-      background: rgba(14, 14, 13, 0.96);
-      border: 1px solid var(--line);
-      border-radius: 8px;
-      padding: 10px;
-      display: grid;
-      gap: 2px;
-      text-align: left;
-    }
-    .menu-panel a:not(.btn) {
-      padding: 12px 12px;
-      font-size: 14px;
-      letter-spacing: 0.12em;
-      text-transform: uppercase;
-    }
-    .menu-panel .btn {
-      margin-top: 8px;
     }
     .copy {
       margin-top: 90px;

@@ -1,6 +1,6 @@
 ---
 import { Image } from 'astro:assets';
-import { contact, statusLabel, type Project } from '../data/site';
+import { statusLabel, waLink, type Project } from '../data/site';
 
 interface Props {
   project: Project;
@@ -10,25 +10,20 @@ interface Props {
 const { project, index } = Astro.props;
 const reversed = index % 2 === 1;
 const number = String(index + 1).padStart(2, '0');
-const fullName = `${project.name} ${project.accent}`;
-
-const waLink = (text: string) => `https://wa.me/${contact.whatsapp}?text=${encodeURIComponent(text)}`;
-const primaryHref = waLink(
-  project.status === 'selling'
-    ? `Assalam o Alaikum, I'm interested in ${fullName}. Please share the master plan, prices and availability.`
-    : `Assalam o Alaikum, I'd like to register my interest in ${fullName}. Please keep me updated.`,
+const href = `/${project.slug}/`;
+const pricesHref = waLink(
+  `Assalam o Alaikum, I'm interested in ${project.fullName}. Please share today's prices and availability.`,
 );
-const brochureHref = waLink(`Assalam o Alaikum, please send me the brochure for ${fullName}.`);
 ---
 
 <section class:list={['panel', { reversed }]} id={project.slug} aria-labelledby={`${project.slug}-title`}>
-  <div class="photo">
+  <a class="photo" href={href} tabindex="-1" aria-hidden="true">
     <Image src={project.image} alt={project.imageAlt} widths={[640, 960, 1400]} sizes="(max-width: 900px) 100vw, 58vw" />
-    <span class="no" aria-hidden="true">{number}</span>
-  </div>
+    <span class="no">{number}</span>
+  </a>
   <div class="text">
     <span class:list={['badge', { muted: project.status !== 'selling' }]}>{statusLabel[project.status]}</span>
-    <h2 id={`${project.slug}-title`}>{project.name}<br /><span class="gold">{project.accent}</span></h2>
+    <h2 id={`${project.slug}-title`}><a href={href}>{project.title[0]}<br /><span class="gold">{project.title[1]}</span></a></h2>
     <p>{project.summary}</p>
     <dl class="spec">
       {
@@ -41,8 +36,8 @@ const brochureHref = waLink(`Assalam o Alaikum, please send me the brochure for 
       }
     </dl>
     <div class="row">
-      <a class="btn btn-gold" href={primaryHref} target="_blank" rel="noopener">{project.primaryCta}</a>
-      {project.showBrochure && <a class="btn btn-outline" href={brochureHref} target="_blank" rel="noopener">Brochure</a>}
+      <a class="btn btn-gold" href={href}>Explore {project.name} →</a>
+      <a class="btn btn-outline" href={pricesHref} target="_blank" rel="noopener">{project.primaryCta}</a>
     </div>
   </div>
 </section>
@@ -61,6 +56,7 @@ const brochureHref = waLink(`Assalam o Alaikum, please send me the brochure for 
     order: 2;
   }
   .photo {
+    display: block;
     position: relative;
     overflow: hidden;
     min-height: 420px;

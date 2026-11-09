@@ -1,0 +1,39 @@
+---
+import Base from '../layouts/Base.astro';
+import Nav from '../components/Nav.astro';
+import Footer from '../components/Footer.astro';
+import { projects } from '../data/site';
+---
+
+<Base title="Page not found · Best Builders & Developers" description="This page could not be found." noindex>
+  <header class="wrap"><Nav /></header>
+  <main class="wrap nf">
+    <span class="kicker">404</span>
+    <h1>Page not<br /><span class="gold">found.</span></h1>
+    <p>Try one of our projects instead:</p>
+    <ul>{projects.map((p) => <li><a class="btn btn-outline" href={`/${p.slug}/`}>{p.fullName}</a></li>)}</ul>
+  </main>
+  <Footer />
+</Base>
+
+<style>
+  .nf {
+    padding-top: 80px;
+    padding-bottom: 120px;
+  }
+  h1 {
+    font-size: clamp(48px, 9vw, 110px);
+    line-height: 0.9;
+    margin: 18px 0 24px;
+  }
+  p {
+    color: var(--mut);
+  }
+  ul {
+    list-style: none;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-top: 24px;
+  }
+</style>

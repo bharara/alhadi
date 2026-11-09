@@ -1,0 +1,26 @@
+---
+import Base from '../layouts/Base.astro';
+import Hero from '../components/Hero.astro';
+import StatsTicker from '../components/StatsTicker.astro';
+import ProjectPanel from '../components/ProjectPanel.astro';
+import Film from '../components/Film.astro';
+import Group from '../components/Group.astro';
+import Footer from '../components/Footer.astro';
+import { group, projects, stats } from '../data/site';
+---
+
+<Base
+  title="Best Builders & Developers · Premium Plots, Villas & Commercial in Faisalabad"
+  description="Gated communities, villas and commercial landmarks on Faisalabad's Canal corridor: Sitara Villas Best Block, Abdullah Gardens and City Walk. Call 0311-073-1111."
+>
+  <Hero />
+  <main>
+    <StatsTicker stats={stats} availability="Plots available now in Sitara Villas & Abdullah Gardens" />
+    <div id="projects">
+      {projects.map((project, index) => <ProjectPanel project={project} index={index} />)}
+    </div>
+    <Film />
+    <Group companies={group} />
+  </main>
+  <Footer />
+</Base>

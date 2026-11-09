@@ -1,0 +1,160 @@
+---
+import { contact } from '../data/site';
+
+interface Props {
+  options: string[];
+}
+
+const { options } = Astro.props;
+---
+
+<form class="leadbar" id="lead-form" data-whatsapp={contact.whatsapp} aria-labelledby="lead-title">
+  <div class="title">
+    <b id="lead-title">Get today's prices</b>
+    <small>We'll reply on WhatsApp</small>
+  </div>
+  <label class="field">
+    <span>Name</span>
+    <input name="name" type="text" autocomplete="name" placeholder="Your full name" required />
+  </label>
+  <label class="field">
+    <span>Phone / WhatsApp</span>
+    <input
+      name="phone"
+      type="tel"
+      autocomplete="tel"
+      inputmode="tel"
+      placeholder="03XX-XXXXXXX"
+      pattern="[0-9+\\- ]{10,15}"
+      required
+    />
+  </label>
+  <label class="field">
+    <span>Project</span>
+    <select name="project">
+      {options.map((o) => <option value={o}>{o}</option>)}
+    </select>
+  </label>
+  <button class="btn btn-gold submit" type="submit">Request Callback →</button>
+</form>
+
+<script>
+  const form = document.querySelector<HTMLFormElement>('#lead-form');
+
+  form?.addEventListener('submit', (event) => {
+    event.preventDefault();
+    const data = new FormData(form);
+    const name = String(data.get('name') ?? '').trim();
+    const phone = String(data.get('phone') ?? '').trim();
+    const project = String(data.get('project') ?? '');
+    const message =
+      `Assalam o Alaikum, I'd like today's prices.\n` +
+      `Name: ${name}\nPhone: ${phone}\nInterested in: ${project}`;
+    const number = form.dataset.whatsapp ?? '';
+    window.open(`https://wa.me/${number}?text=${encodeURIComponent(message)}`, '_blank', 'noopener');
+  });
+</script>
+
+<style>
+  .leadbar {
+    position: absolute;
+    z-index: 4;
+    left: var(--gutter);
+    right: var(--gutter);
+    bottom: 40px;
+    max-width: 1264px;
+    margin: 0 auto;
+    display: grid;
+    grid-template-columns: 1.2fr 1fr 1fr 1fr auto;
+    background: rgba(14, 14, 13, 0.82);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    border: 1px solid rgba(243, 220, 174, 0.25);
+    border-radius: 8px;
+    overflow: hidden;
+    text-align: left;
+  }
+  .title {
+    padding: 22px 26px;
+    border-right: 1px solid var(--line);
+  }
+  .title b {
+    font-family: var(--disp);
+    font-size: 20px;
+    text-transform: uppercase;
+    display: block;
+  }
+  .title small {
+    color: var(--mut);
+    font-size: 13px;
+  }
+  .field {
+    padding: 18px 24px;
+    border-right: 1px solid var(--line);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+  }
+  .field span {
+    font-size: 11px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--mut);
+  }
+  .field input,
+  .field select {
+    margin-top: 6px;
+    background: transparent;
+    border: 0;
+    color: var(--txt);
+    font: 500 15px var(--sans);
+    width: 100%;
+    padding: 2px 0;
+    outline: none;
+  }
+  .field input::placeholder {
+    color: #8d877c;
+  }
+  .field select option {
+    background: #141412;
+  }
+  .field:focus-within {
+    background: rgba(243, 220, 174, 0.05);
+  }
+  .submit {
+    border-radius: 0;
+    padding: 0 38px;
+    font-size: 15px;
+  }
+
+  @media (max-width: 1100px) {
+    .leadbar {
+      grid-template-columns: 1fr 1fr;
+    }
+    .title {
+      grid-column: 1 / -1;
+      border-right: 0;
+      border-bottom: 1px solid var(--line);
+    }
+    .field {
+      border-bottom: 1px solid var(--line);
+    }
+    .submit {
+      padding: 20px;
+    }
+  }
+
+  @media (max-width: 900px) {
+    .leadbar {
+      position: relative;
+      left: auto;
+      right: auto;
+      bottom: auto;
+      margin: 0 var(--gutter) 32px;
+      grid-template-columns: 1fr;
+    }
+    .field {
+      border-right: 0;
+    }
+  }
+</style>

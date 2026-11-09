@@ -1,0 +1,118 @@
+---
+import { Image } from 'astro:assets';
+import { contact, type GroupCompany } from '../data/site';
+
+interface Props {
+  companies: GroupCompany[];
+}
+
+const { companies } = Astro.props;
+---
+
+<section class="grp" id="group" aria-labelledby="group-title">
+  <div class="wrap">
+    <div class="top">
+      <div>
+        <span class="kicker">The Best Builders Group</span>
+        <h2 id="group-title">Buy. Build.<br /><span class="gold">Furnish.</span></h2>
+      </div>
+      <a class="btn btn-outline" href={contact.group} target="_blank" rel="noopener">About the group</a>
+    </div>
+    <div class="cols">
+      {
+        companies.map((c) => (
+          <a class:list={['col', { current: c.current }]} href={c.current ? '#projects' : contact.group} target={c.current ? undefined : '_blank'} rel={c.current ? undefined : 'noopener'}>
+            <Image src={c.image} alt="" widths={[480, 800]} sizes="(max-width: 900px) 100vw, 33vw" />
+            <div class="t">
+              <span class="kicker">{c.kicker}</span>
+              <h3>{c.name}</h3>
+              <p>{c.blurb}</p>
+            </div>
+          </a>
+        ))
+      }
+    </div>
+  </div>
+</section>
+
+<style>
+  .grp {
+    padding: 120px 0;
+  }
+  .top {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    gap: 24px;
+    margin-bottom: 46px;
+  }
+  h2 {
+    font-size: clamp(44px, 5vw, 64px);
+    line-height: 0.95;
+    margin-top: 14px;
+  }
+  .cols {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 20px;
+  }
+  .col {
+    position: relative;
+    height: 440px;
+    border-radius: 8px;
+    overflow: hidden;
+    border: 1px solid var(--line);
+  }
+  .col img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    opacity: 0.55;
+    transition: opacity 0.4s ease, transform 1s ease;
+  }
+  .col:hover img {
+    opacity: 0.7;
+    transform: scale(1.03);
+  }
+  .col.current {
+    border-color: var(--gold);
+  }
+  .col::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(0deg, rgba(7, 7, 7, 0.85), transparent 60%);
+  }
+  .t {
+    position: absolute;
+    z-index: 1;
+    left: 28px;
+    right: 28px;
+    bottom: 26px;
+  }
+  h3 {
+    font-size: 36px;
+    font-weight: 700;
+  }
+  p {
+    color: #cfc8bb;
+    font-size: 14px;
+    margin-top: 6px;
+  }
+
+  @media (max-width: 900px) {
+    .grp {
+      padding: 72px 0;
+    }
+    .top {
+      flex-direction: column;
+      align-items: flex-start;
+    }
+    .cols {
+      grid-template-columns: 1fr;
+    }
+    .col {
+      height: 280px;
+    }
+  }
+</style>

@@ -1,0 +1,7 @@
+# astro2tsx's WASM fallback crashes with the @emnapi/runtime 2.0 beta; pin to stable 1.x.
+overrides:
+  '@emnapi/runtime': ^1.11.3
+  '@emnapi/core': ^1.11.3
+onlyBuiltDependencies:
+  - esbuild
+  - sharp

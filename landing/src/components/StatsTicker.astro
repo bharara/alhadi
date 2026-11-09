@@ -1,0 +1,91 @@
+---
+import type { Stat } from '../data/site';
+
+interface Props {
+  stats: Stat[];
+  availability: string;
+}
+
+const { stats, availability } = Astro.props;
+---
+
+<section class="tick" aria-label="Key figures">
+  {
+    stats.map((s) => (
+      <div class="cell">
+        <b class="gold">{s.value}</b>
+        <span>{s.label}</span>
+      </div>
+    ))
+  }
+  <div class="cell live">
+    <span><i class="dot" aria-hidden="true"></i>{availability}</span>
+  </div>
+</section>
+
+<style>
+  .tick {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    border-top: 1px solid var(--line);
+    border-bottom: 1px solid var(--line);
+  }
+  .cell {
+    padding: 30px 40px;
+    border-right: 1px solid var(--line);
+    display: flex;
+    align-items: center;
+    gap: 18px;
+  }
+  .cell:last-child {
+    border-right: 0;
+  }
+  b {
+    font-family: var(--disp);
+    font-size: 46px;
+    font-weight: 700;
+    flex: none;
+  }
+  span {
+    font-size: 13px;
+    color: var(--mut);
+    line-height: 1.4;
+    max-width: 170px;
+  }
+  .live span {
+    max-width: 240px;
+  }
+  .dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #59d38c;
+    box-shadow: 0 0 0 5px rgba(89, 211, 140, 0.18);
+    display: inline-block;
+    margin-right: 10px;
+    vertical-align: middle;
+  }
+
+  @media (max-width: 1000px) {
+    .tick {
+      grid-template-columns: repeat(2, 1fr);
+    }
+    .cell {
+      padding: 22px var(--gutter);
+      border-bottom: 1px solid var(--line);
+    }
+    .cell:nth-child(2n) {
+      border-right: 0;
+    }
+  }
+  @media (max-width: 520px) {
+    .cell {
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 6px;
+    }
+    b {
+      font-size: 36px;
+    }
+  }
+</style>

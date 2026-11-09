@@ -1,0 +1,139 @@
+:root {
+  --bg: #070707;
+  --bg-2: #0e0e0d;
+  --card: #141412;
+  --line: rgba(255, 255, 255, 0.1);
+  --txt: #f2ede4;
+  --mut: #9a958b;
+  --gold: #d4b177;
+  --gold-2: #f3dcae;
+  --grad: linear-gradient(100deg, #b8925a 0%, #f3dcae 45%, #c9a35f 100%);
+  --disp: 'Syne', system-ui, sans-serif;
+  --sans: 'Manrope', system-ui, sans-serif;
+  --gutter: 48px;
+  color-scheme: dark;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background: var(--bg);
+  color: var(--txt);
+  font-family: var(--sans);
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+img {
+  display: block;
+  max-width: 100%;
+}
+
+h1,
+h2,
+h3 {
+  font-family: var(--disp);
+  text-transform: uppercase;
+  letter-spacing: -0.025em;
+}
+
+.wrap {
+  max-width: 1360px;
+  margin: 0 auto;
+  padding: 0 var(--gutter);
+}
+
+.gold {
+  background: var(--grad);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.kicker {
+  font-size: 12px;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: var(--gold);
+  font-weight: 500;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 16px 26px;
+  border-radius: 4px;
+  font-weight: 600;
+  font-size: 14px;
+  letter-spacing: 0.04em;
+  border: 0;
+  cursor: pointer;
+  font-family: var(--sans);
+  transition: transform 0.2s ease, filter 0.2s ease, background-color 0.2s ease;
+}
+
+.btn:hover {
+  transform: translateY(-1px);
+  filter: brightness(1.06);
+}
+
+.btn-gold {
+  background: var(--grad);
+  color: #120e07;
+}
+
+.btn-outline {
+  background: transparent;
+  border: 1px solid rgba(243, 220, 174, 0.4);
+  color: var(--gold-2);
+}
+
+.btn-outline:hover {
+  background: rgba(243, 220, 174, 0.08);
+}
+
+:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 3px;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+@media (max-width: 900px) {
+  :root {
+    --gutter: 20px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  * {
+    transition: none !important;
+  }
+}

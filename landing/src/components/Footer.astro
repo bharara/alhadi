@@ -1,0 +1,142 @@
+---
+import { Image } from 'astro:assets';
+import logo from '../assets/logo.png';
+import { contact, footerProjects } from '../data/site';
+
+const year = new Date().getFullYear();
+const wa = `https://wa.me/${contact.whatsapp}`;
+---
+
+<section class="cta" id="contact" aria-labelledby="cta-title">
+  <div class="wrap">
+    <span class="kicker">Ready when you are</span>
+    <h2 id="cta-title">Visit the site<br /><span class="gold">with us.</span></h2>
+    <p>Free site visits, seven days a week. Our advisors will walk you through plots, payment plans and possession.</p>
+    <div class="row">
+      <a class="btn btn-gold" href={`tel:${contact.phoneTel}`}>Call {contact.phoneDisplay}</a>
+      <a class="btn btn-outline" href={wa} target="_blank" rel="noopener">WhatsApp Sales</a>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <div class="g">
+      <div><Image src={logo} alt="Best Builders & Developers" width={190} height={160} /></div>
+      <div>
+        <h5>Projects</h5>
+        <ul>{footerProjects.map((p) => <li>{p}</li>)}</ul>
+      </div>
+      <div>
+        <h5>Company</h5>
+        <ul>
+          <li><a href="#group">The Group</a></li>
+          <li><a href={contact.group} target="_blank" rel="noopener">Best Builders Interiors</a></li>
+          <li><a href={contact.group} target="_blank" rel="noopener">Best Builders Homes</a></li>
+        </ul>
+      </div>
+      <div>
+        <h5>Contact</h5>
+        <ul>
+          <li><a href={`tel:${contact.phoneTel}`}>UAN {contact.phoneDisplay}</a></li>
+          <li><a href={wa} target="_blank" rel="noopener">WhatsApp</a></li>
+          <li>{contact.city}</li>
+        </ul>
+      </div>
+    </div>
+    <div class="b">
+      <span>© {year} Best Builders &amp; Developers</span>
+      <span class="social">
+        <a href={contact.facebook} target="_blank" rel="noopener">Facebook</a>
+        <a href={contact.instagram} target="_blank" rel="noopener">Instagram</a>
+      </span>
+    </div>
+  </div>
+</footer>
+
+<style>
+  .cta {
+    padding: 110px 0;
+    text-align: center;
+    border-top: 1px solid var(--line);
+  }
+  .cta h2 {
+    font-weight: 800;
+    font-size: clamp(48px, 8vw, 104px);
+    line-height: 0.9;
+    margin-top: 18px;
+  }
+  .cta p {
+    color: var(--mut);
+    max-width: 520px;
+    margin: 22px auto 0;
+    line-height: 1.6;
+  }
+  .row {
+    display: flex;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 14px;
+    margin-top: 36px;
+  }
+  footer {
+    border-top: 1px solid var(--line);
+    padding: 70px 0 34px;
+  }
+  .g {
+    display: grid;
+    grid-template-columns: 1.4fr 1fr 1fr 1fr;
+    gap: 40px;
+  }
+  .g img {
+    height: 80px;
+    width: auto;
+  }
+  h5 {
+    font-size: 12px;
+    letter-spacing: 0.24em;
+    text-transform: uppercase;
+    color: var(--gold);
+    margin-bottom: 16px;
+    font-weight: 500;
+  }
+  li {
+    list-style: none;
+    color: var(--mut);
+    font-size: 14px;
+    margin-bottom: 10px;
+  }
+  li a:hover,
+  .social a:hover {
+    color: var(--gold-2);
+  }
+  .b {
+    display: flex;
+    justify-content: space-between;
+    gap: 16px;
+    margin-top: 60px;
+    padding-top: 24px;
+    border-top: 1px solid var(--line);
+    font-size: 13px;
+    color: var(--mut);
+  }
+  .social {
+    display: flex;
+    gap: 18px;
+  }
+
+  @media (max-width: 900px) {
+    .cta {
+      padding: 72px 0;
+    }
+    .g {
+      grid-template-columns: 1fr 1fr;
+    }
+    .g > div:first-child {
+      grid-column: 1 / -1;
+    }
+    .b {
+      flex-direction: column;
+    }
+  }
+</style>

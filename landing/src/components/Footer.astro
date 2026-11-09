@@ -46,6 +46,7 @@ const wa = `https://wa.me/${contact.whatsapp}`;
     </div>
     <div class="b">
       <span>© {year} Best Builders &amp; Developers</span>
+      <span class="credit">Made by <a href="https://exprtec.com/" target="_blank" rel="noopener">Exprtec</a></span>
       <span class="social">
         <a href={contact.facebook} target="_blank" rel="noopener">Facebook</a>
         <a href={contact.instagram} target="_blank" rel="noopener">Instagram</a>
@@ -107,6 +108,10 @@ const wa = `https://wa.me/${contact.whatsapp}`;
     margin-bottom: 10px;
   }
   li a:hover,
+  .credit a {
+    color: var(--gold-2);
+  }
+  .credit a:hover,
   .social a:hover {
     color: var(--gold-2);
   }

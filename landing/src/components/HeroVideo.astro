@@ -1,0 +1,102 @@
+---
+import Modal from './Modal.astro';
+import type { ProjectVideo } from '../data/site';
+
+interface Props {
+  video: ProjectVideo;
+}
+
+const { video } = Astro.props;
+---
+
+<!-- Fades in over the hero photo (which stays the LCP image) once the page is loaded and idle. -->
+<video
+  class="hero-video"
+  data-hero-video
+  data-portrait={video.loop.portrait}
+  data-landscape={video.loop.landscape}
+  muted
+  loop
+  playsinline
+  disablepictureinpicture
+  preload="none"
+  aria-hidden="true"></video>
+
+<Modal label={video.title} data-player>
+  <video class="reel" controls playsinline preload="none" data-src={video.full}></video>
+</Modal>
+
+<script>
+  type Connection = { saveData?: boolean; effectiveType?: string };
+
+  const bg = document.querySelector<HTMLVideoElement>('[data-hero-video]');
+  const dialog = document.querySelector<HTMLDialogElement>('[data-player]');
+
+  if (bg && dialog) {
+    const full = dialog.querySelector('video')!;
+    const conn = (navigator as Navigator & { connection?: Connection }).connection;
+    const lite =
+      matchMedia('(prefers-reduced-motion: reduce)').matches || !!conn?.saveData || /(^|-)(2g|3g)$/.test(conn?.effectiveType ?? '');
+
+    const portrait = matchMedia('(orientation: portrait)');
+    const pick = () => {
+      bg.src = (portrait.matches ? bg.dataset.portrait : bg.dataset.landscape)!;
+      if (!dialog.open) bg.play().catch(() => {});
+    };
+
+    const start = () => {
+      pick();
+      portrait.addEventListener('change', pick);
+      bg.addEventListener('playing', () => bg.classList.add('on'), { once: true });
+      // Only play while the hero is on screen.
+      new IntersectionObserver(([e]) => {
+        if (e?.isIntersecting && !dialog.open) bg.play().catch(() => {});
+        else bg.pause();
+      }).observe(bg);
+    };
+
+    if (!lite) {
+      const idle = () => ('requestIdleCallback' in window ? requestIdleCallback(start, { timeout: 3000 }) : setTimeout(start, 1500));
+      if (document.readyState === 'complete') idle();
+      else addEventListener('load', idle, { once: true });
+    }
+
+    document.querySelectorAll('[data-watch-video]').forEach((b) =>
+      b.addEventListener('click', () => {
+        if (!full.src) full.src = full.dataset.src!;
+        bg.pause();
+        dialog.showModal();
+        full.play().catch(() => {});
+      }),
+    );
+    dialog.addEventListener('close', () => {
+      full.pause();
+      if (bg.src) bg.play().catch(() => {});
+    });
+  }
+</script>
+
+<style>
+  .hero-video {
+    position: absolute;
+    z-index: 0;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    opacity: 0;
+    transition: opacity 1s ease;
+  }
+  .hero-video.on {
+    opacity: 1;
+  }
+
+  .reel {
+    display: block;
+    height: min(86vh, 160vw);
+    aspect-ratio: 9 / 16;
+    max-width: 92vw;
+    border-radius: 10px;
+    background: #000;
+  }
+</style>

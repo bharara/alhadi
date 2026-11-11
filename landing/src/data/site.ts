@@ -3,7 +3,6 @@ import type { ImageMetadata } from 'astro';
 import villaTwin from '../assets/villa-twin.jpg';
 import villaWide from '../assets/villa-wide.jpg';
 import villaDusk from '../assets/villa-dusk.jpg';
-import luxContinental from '../assets/lux-continental.jpg';
 import mansion from '../assets/mansion.jpg';
 import interiorBed from '../assets/interior-bed.jpg';
 import sitaraGate from '../assets/sitara-gate.jpg';
@@ -17,6 +16,29 @@ import ag3 from '../assets/abdullah/gallery-3.jpg';
 import ag4 from '../assets/abdullah/gallery-4.jpg';
 import ag5 from '../assets/abdullah/gallery-5.jpg';
 import ag6 from '../assets/abdullah/gallery-6.jpg';
+import cwDroneDay from '../assets/city-walk/drone-day.jpg';
+import cwDroneNight from '../assets/city-walk/drone-night.jpg';
+import cwSign from '../assets/city-walk/sign.jpg';
+import cwCourts from '../assets/city-walk/sports-courts.jpg';
+import cwBoulevard from '../assets/city-walk/boulevard.jpg';
+import cwPlaza from '../assets/city-walk/plaza-construction.jpg';
+import cwBlocks from '../assets/city-walk/aerial-blocks.jpg';
+import cwAvenue from '../assets/city-walk/aerial-avenue.jpg';
+import cwGreenbelt from '../assets/city-walk/aerial-greenbelt.jpg';
+import svGateTitle from '../assets/sitara/gate-title.jpg';
+import cwLoopPortrait from '../assets/video/city-walk-loop-portrait.mp4?url';
+import cwLoopLandscape from '../assets/video/city-walk-loop-landscape.mp4?url';
+import cwReel from '../assets/video/city-walk.mp4?url';
+import svLoopPortrait from '../assets/video/sitara-villas-loop-portrait.mp4?url';
+import svLoopLandscape from '../assets/video/sitara-villas-loop-landscape.mp4?url';
+import svReel from '../assets/video/sitara-villas.mp4?url';
+import svSports from '../assets/sitara/sports-complex.jpg';
+import svHomes from '../assets/sitara/homes.jpg';
+import svCommercial from '../assets/sitara/commercial-area.jpg';
+import svAerialPark from '../assets/sitara/aerial-park.jpg';
+import svBoulevard from '../assets/sitara/boulevard.jpg';
+import svParks from '../assets/sitara/parks.jpg';
+import svMosque from '../assets/sitara/mosque.jpg';
 
 /** Images used directly by section components (project and group images live on their records). */
 export const images = { villaTwin, mansion };
@@ -64,9 +86,25 @@ export interface Faq {
   a: string;
 }
 
+export type GalleryLayout = 'full' | 'wide' | 'tall';
+
 export interface GalleryImage {
   image: ImageMetadata;
   alt: string;
+  /** Grid tile size; inferred from the aspect ratio when omitted. */
+  layout?: GalleryLayout;
+}
+
+export interface ProjectVideo {
+  /** Short silent hero background loops, cut for portrait and landscape screens. */
+  loop: { portrait: string; landscape: string };
+  /** The full reel with sound, loaded only when someone taps "Watch". */
+  full: string;
+  title: string;
+  description: string;
+  /** ISO 8601 duration of the full reel, e.g. PT47S. */
+  duration: string;
+  uploadDate: string;
 }
 
 export interface Project {
@@ -106,6 +144,8 @@ export interface Project {
   faqs: Faq[];
   /** Real project photography, shown in the page gallery. */
   gallery?: GalleryImage[];
+  /** Vertical site reel shown in the hero. */
+  video?: ProjectVideo;
 }
 
 export const statusLabel: Record<ProjectStatus, string> = {
@@ -203,6 +243,25 @@ export const projects: Project[] = [
         a: 'Yes. Best Builders Interiors, part of the same group, designs and builds homes, and Best Builders Homes furnishes them. You can buy, build and furnish with one group.',
       },
     ],
+    gallery: [
+      { image: svSports, alt: 'Aerial view of the sports complex with football ground and courts at Sitara Villas, Faisalabad' },
+      { image: svGateTitle, alt: 'Sitara Villas stone-pillar entrance gate on Canal Expressway, Faisalabad' },
+      { image: svBoulevard, alt: 'Aerial view of the tree-lined main boulevard through Sitara Villas' },
+      { image: svHomes, alt: 'Aerial view of completed homes along a green avenue in Sitara Villas' },
+      { image: svAerialPark, alt: 'Aerial view of a landscaped park with walking tracks in Sitara Villas' },
+      { image: svParks, alt: 'Landscaped park with children’s play area at Sitara Villas, Faisalabad' },
+      { image: svMosque, alt: 'Grand Mosque with a modern curved facade at Sitara Villas' },
+      { image: svCommercial, alt: 'Commercial area on the main road at Sitara Villas, Canal Expressway' },
+    ],
+    video: {
+      loop: { portrait: svLoopPortrait, landscape: svLoopLandscape },
+      full: svReel,
+      title: 'Sitara Villas Faisalabad site tour',
+      description:
+        'Drone and on-site footage of Sitara Villas on Canal Expressway, Faisalabad: the entrance gate, 1 and 2 Kanal plots, parks, carpeted roads and homes under construction.',
+      duration: 'PT43S',
+      uploadDate: '2026-11-11',
+    },
   },
   {
     slug: 'abdullah-gardens',
@@ -294,7 +353,7 @@ export const projects: Project[] = [
       },
     ],
     gallery: [
-      { image: agGate, alt: 'Main entrance gate of Abdullah Gardens on Canal Road, Faisalabad' },
+      { image: agGate, alt: 'Main entrance gate of Abdullah Gardens on Canal Road, Faisalabad', layout: 'full' },
       { image: ag6, alt: 'Tree-lined Canal Road approach to Abdullah Gardens, Faisalabad' },
       { image: ag1, alt: 'Palm-lined landscaped road in the Premium Block, Abdullah Gardens' },
       { image: ag2, alt: 'Wide avenue with street lights and green belts at Abdullah Gardens' },
@@ -312,8 +371,8 @@ export const projects: Project[] = [
     kind: 'Commercial',
     summary:
       'A commercial address on Canal Road, with about 230 shop and office plots on 80 ft boulevards around a sports complex, a park and a mosque.',
-    image: luxContinental,
-    imageAlt: 'Classical stone commercial facade representing City Walk on Canal Road',
+    image: cwDroneDay,
+    imageAlt: 'Aerial drone view of City Walk on Canal Road, Faisalabad, with its boulevards, green belts and plots',
     specs: [
       { label: 'Location', value: 'Canal Road' },
       { label: 'Units', value: 'Shops · Offices · Plazas' },
@@ -390,6 +449,26 @@ export const projects: Project[] = [
         a: 'Contact our sales team on 0311-073-1111. We will share the available plots, hold your choice, and take you through booking and documentation.',
       },
     ],
+    gallery: [
+      { image: cwDroneDay, alt: 'Aerial drone view of City Walk on Canal Road, Faisalabad, with its boulevards and green belts', layout: 'full' },
+      { image: cwDroneNight, alt: 'City Walk lit up at night, seen from a drone over Canal Road, Faisalabad' },
+      { image: cwPlaza, alt: 'Commercial plaza under construction at City Walk, Faisalabad' },
+      { image: cwBlocks, alt: 'Aerial view of the commercial blocks, roads and park at City Walk' },
+      { image: cwSign, alt: 'City Walk landmark sign on a landscaped lawn at the entrance, Canal Road' },
+      { image: cwBoulevard, alt: 'Palm-lined 80 ft boulevard with a digital billboard at City Walk' },
+      { image: cwAvenue, alt: 'Aerial view down the main avenue of City Walk under construction' },
+      { image: cwGreenbelt, alt: 'Green belt and road junction inside City Walk, Faisalabad' },
+      { image: cwCourts, alt: 'Sports complex with padel and tennis courts at City Walk, Canal Road' },
+    ],
+    video: {
+      loop: { portrait: cwLoopPortrait, landscape: cwLoopLandscape },
+      full: cwReel,
+      title: 'City Walk Faisalabad construction update',
+      description:
+        'Drone footage of City Walk on Main Canal Road, Faisalabad: the entrance, development work, commercial plazas under construction and the 80 ft boulevards.',
+      duration: 'PT47S',
+      uploadDate: '2026-11-11',
+    },
   },
 ];
 

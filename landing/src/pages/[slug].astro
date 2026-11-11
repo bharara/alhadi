@@ -6,6 +6,7 @@ import Nav from '../components/Nav.astro';
 import LeadForm from '../components/LeadForm.astro';
 import Faq from '../components/Faq.astro';
 import Gallery from '../components/Gallery.astro';
+import HeroVideo from '../components/HeroVideo.astro';
 import Footer from '../components/Footer.astro';
 import logo from '../assets/logo.png';
 import { contact, enquiryOptions, projects, statusLabel, waLink, type Project } from '../data/site';
@@ -44,6 +45,7 @@ const planHref = waLink(`Assalam o Alaikum, please share the latest master plan 
 >
   <header class="hero">
     <Image class="hero-bg" src={p.image} alt="" widths={[768, 1280, 1920]} sizes="100vw" loading="eager" fetchpriority="high" />
+    {p.video && <HeroVideo video={p.video} />}
     <div class="wrap">
       <Nav />
       <div class="copy">
@@ -63,6 +65,13 @@ const planHref = waLink(`Assalam o Alaikum, please share the latest master plan 
           <a class="btn btn-gold" href={pricesHref} target="_blank" rel="noopener">Get today's prices</a>
           <a class="btn btn-outline" href={`tel:${contact.phoneTel}`}>Call {contact.phoneDisplay}</a>
         </div>
+        {
+          p.video && (
+            <button class="watch" type="button" data-watch-video aria-haspopup="dialog">
+              <span aria-hidden="true">▶</span> Watch the {p.name} video
+            </button>
+          )
+        }
       </div>
     </div>
     <dl class="facts wrap">
@@ -274,6 +283,32 @@ const planHref = waLink(`Assalam o Alaikum, please share the latest master plan 
   .copy {
     margin-top: 70px;
     max-width: 1040px;
+  }
+  .watch {
+    display: inline-flex;
+    align-items: center;
+    gap: 12px;
+    margin-top: 22px;
+    padding: 6px 0;
+    background: none;
+    border: 0;
+    color: var(--gold-2);
+    font: 600 15px var(--sans);
+    cursor: pointer;
+  }
+  .watch span {
+    display: grid;
+    place-items: center;
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    border: 1px solid rgba(243, 220, 174, 0.5);
+    font-size: 11px;
+    padding-left: 2px;
+    transition: background 0.25s ease;
+  }
+  .watch:hover span {
+    background: rgba(243, 220, 174, 0.15);
   }
   .crumbs ol {
     display: flex;

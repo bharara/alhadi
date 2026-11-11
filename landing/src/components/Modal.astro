@@ -1,0 +1,51 @@
+---
+import type { HTMLAttributes } from 'astro/types';
+
+type Props = HTMLAttributes<'dialog'> & { label: string };
+
+const { label, ...rest } = Astro.props;
+---
+
+<dialog class="modal" aria-label={label} data-modal {...rest}>
+  <slot />
+  <button class="x" type="button" aria-label="Close" data-close>×</button>
+</dialog>
+
+<script>
+  document.querySelectorAll<HTMLDialogElement>('dialog[data-modal]').forEach((dialog) => {
+    dialog.querySelector('[data-close]')!.addEventListener('click', () => dialog.close());
+    dialog.addEventListener('click', (e) => e.target === dialog && dialog.close());
+  });
+</script>
+
+<style>
+  .modal {
+    margin: auto;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    max-width: 100vw;
+    max-height: 100vh;
+    overflow: visible;
+    color: var(--txt);
+  }
+  .modal::backdrop {
+    background: rgba(5, 5, 5, 0.92);
+  }
+  .modal :global(button) {
+    position: fixed;
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    background: rgba(20, 20, 18, 0.85);
+    border: 1px solid rgba(243, 220, 174, 0.3);
+    color: var(--gold-2);
+    font-size: 28px;
+    line-height: 1;
+    cursor: pointer;
+  }
+  .x {
+    top: 20px;
+    right: 20px;
+  }
+</style>

@@ -1,6 +1,7 @@
 ---
 import { Image, getImage } from 'astro:assets';
-import type { GalleryImage } from '../data/site';
+import Modal from './Modal.astro';
+import type { GalleryImage, GalleryLayout } from '../data/site';
 
 interface Props {
   items: GalleryImage[];
@@ -10,37 +11,47 @@ interface Props {
 const { items, title } = Astro.props;
 // Large versions for the full-screen viewer, generated at build time.
 const full = await Promise.all(items.map((i) => getImage({ src: i.image, width: Math.min(i.image.width, 1800), format: 'webp' })));
-const wideIndex = items.findIndex((i) => i.image.width > i.image.height * 1.4);
+const layoutOf = (i: GalleryImage): GalleryLayout => i.layout ?? (i.image.width > i.image.height * 1.15 ? 'wide' : 'tall');
+// Rendered tile widths; desktop values are capped at the 1264px content width.
+const sizing = {
+  full: { widths: [640, 1000, 1400], sizes: '(max-width: 1360px) calc(100vw - 40px), 1264px' },
+  wide: { widths: [640, 900, 1200], sizes: '(max-width: 900px) calc(100vw - 40px), min(66vw, 845px)' },
+  tall: { widths: [360, 540, 720], sizes: '(max-width: 900px) 50vw, min(33vw, 412px)' },
+} satisfies Record<GalleryLayout, { widths: number[]; sizes: string }>;
 ---
 
-<div class="gal" data-gallery>
-  {
-    items.map((item, i) => (
-      <a
-        class:list={['g', { wide: i === wideIndex }]}
-        href={full[i]!.src}
-        data-index={i}
-        aria-label={`View photo ${i + 1} of ${items.length}: ${item.alt}`}
-      >
-        <Image
-          src={item.image}
-          alt={item.alt}
-          widths={i === wideIndex ? [640, 1000, 1400] : [360, 540, 720]}
-          sizes={i === wideIndex ? '(max-width: 900px) 100vw, 1264px' : '(max-width: 560px) 50vw, (max-width: 900px) 50vw, 33vw'}
-          loading="lazy"
-        />
-      </a>
-    ))
-  }
+<div class="gal-c" data-gallery>
+  <div class="gal">
+    {
+      items.map((item, i) => {
+        const layout = layoutOf(item);
+        return (
+          <a
+            class:list={['g', layout]}
+            href={full[i]!.src}
+            data-index={i}
+            aria-label={`View photo ${i + 1} of ${items.length}: ${item.alt}`}
+          >
+            <Image
+              src={item.image}
+              alt={item.alt}
+              widths={sizing[layout].widths}
+              sizes={sizing[layout].sizes}
+              loading="lazy"
+            />
+          </a>
+        );
+      })
+    }
+  </div>
 </div>
 
-<dialog class="lb" aria-label={title} data-lightbox>
-  <img alt="" />
+<Modal label={title} data-lightbox>
+  <img class="photo" alt="" />
   <p class="cap"></p>
-  <button class="x" type="button" aria-label="Close" data-close>×</button>
   <button class="nav prev" type="button" aria-label="Previous photo" data-step="-1">‹</button>
   <button class="nav next" type="button" aria-label="Next photo" data-step="1">›</button>
-</dialog>
+</Modal>
 
 <script>
   document.querySelectorAll<HTMLElement>('[data-gallery]').forEach((gallery) => {
@@ -69,8 +80,6 @@ const wideIndex = items.findIndex((i) => i.image.width > i.image.height * 1.4);
     dialog.querySelectorAll<HTMLButtonElement>('[data-step]').forEach((b) =>
       b.addEventListener('click', () => show(current + Number(b.dataset.step))),
     );
-    dialog.querySelector('[data-close]')!.addEventListener('click', () => dialog.close());
-    dialog.addEventListener('click', (e) => e.target === dialog && dialog.close());
     dialog.addEventListener('keydown', (e) => {
       if (e.key === 'ArrowRight') show(current + 1);
       if (e.key === 'ArrowLeft') show(current - 1);
@@ -79,10 +88,17 @@ const wideIndex = items.findIndex((i) => i.image.width > i.image.height * 1.4);
 </script>
 
 <style>
+  /* Row height = width of a 3:4 portrait tile. */
+  .gal-c {
+    container-type: inline-size;
+  }
   .gal {
+    --cols: 3;
+    --gap: 14px;
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 14px;
+    grid-template-columns: repeat(var(--cols), 1fr);
+    grid-auto-rows: calc((100cqi - (var(--cols) - 1) * var(--gap)) / var(--cols) * 4 / 3);
+    gap: var(--gap);
   }
   .g {
     position: relative;
@@ -90,13 +106,14 @@ const wideIndex = items.findIndex((i) => i.image.width > i.image.height * 1.4);
     overflow: hidden;
     border-radius: 8px;
     border: 1px solid var(--line);
-    aspect-ratio: 3 / 4;
     background: var(--card);
     cursor: zoom-in;
   }
   .g.wide {
+    grid-column: span 2;
+  }
+  .g.full {
     grid-column: 1 / -1;
-    aspect-ratio: 16 / 7;
   }
   .g img {
     width: 100%;
@@ -108,20 +125,7 @@ const wideIndex = items.findIndex((i) => i.image.width > i.image.height * 1.4);
     transform: scale(1.04);
   }
 
-  .lb {
-    margin: auto;
-    padding: 0;
-    border: 0;
-    background: transparent;
-    max-width: 100vw;
-    max-height: 100vh;
-    overflow: visible;
-    color: var(--txt);
-  }
-  .lb::backdrop {
-    background: rgba(5, 5, 5, 0.92);
-  }
-  .lb img {
+  .photo {
     max-width: min(92vw, 1400px);
     max-height: 82vh;
     width: auto;
@@ -133,22 +137,6 @@ const wideIndex = items.findIndex((i) => i.image.width > i.image.height * 1.4);
     text-align: center;
     font-size: 14px;
     color: var(--mut);
-  }
-  .lb button {
-    position: fixed;
-    background: rgba(20, 20, 18, 0.85);
-    border: 1px solid rgba(243, 220, 174, 0.3);
-    color: var(--gold-2);
-    width: 48px;
-    height: 48px;
-    border-radius: 50%;
-    font-size: 28px;
-    line-height: 1;
-    cursor: pointer;
-  }
-  .x {
-    top: 20px;
-    right: 20px;
   }
   .nav {
     top: 50%;
@@ -163,11 +151,8 @@ const wideIndex = items.findIndex((i) => i.image.width > i.image.height * 1.4);
 
   @media (max-width: 900px) {
     .gal {
-      grid-template-columns: 1fr 1fr;
-      gap: 10px;
-    }
-    .g.wide {
-      aspect-ratio: 16 / 9;
+      --cols: 2;
+      --gap: 10px;
     }
     .nav {
       top: auto;

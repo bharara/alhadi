@@ -25,6 +25,12 @@ const project = projects.find((p) => p.slug === l.project_slug);
 const sold = l.status === 'sold';
 const [cover, ...rest] = l.photos;
 const logoUrl = new URL((await getImage({ src: logo, width: 360, format: 'png' })).src, site).href;
+// Properties sit under their town (project page); ones without a town sit under the directory.
+const crumbs = [
+  { name: 'Home', href: '/' },
+  project ? { name: project.name, href: `/${project.slug}/` } : { name: 'Properties', href: '/properties/' },
+  { name: l.title, href: listingPath(l) },
+];
 const related = listings.filter((x) => x.id !== l.id && x.status === 'available' && (l.project_slug ? x.project_slug === l.project_slug : true)).slice(0, 3);
 const paragraphs = (l.description ?? '').split(/\n\s*\n/).map((p) => p.trim()).filter(Boolean);
 const where = [l.project_name, l.block ? `Block ${l.block}` : null, l.number ? `No. ${l.number}` : null].filter(Boolean).join(', ');
@@ -65,11 +71,7 @@ const jsonLd = {
     },
     {
       '@type': 'BreadcrumbList',
-      itemListElement: [
-        { '@type': 'ListItem', position: 1, name: 'Home', item: new URL('/', site).href },
-        { '@type': 'ListItem', position: 2, name: 'Properties', item: new URL('/properties/', site).href },
-        { '@type': 'ListItem', position: 3, name: l.title, item: url },
-      ],
+      itemListElement: crumbs.map((c, i) => ({ '@type': 'ListItem', position: i + 1, name: c.name, item: new URL(c.href, site).href })),
     },
   ],
 };
@@ -88,8 +90,7 @@ const jsonLd = {
     <section class="wrap top" aria-labelledby="listing-title">
       <nav class="crumbs" aria-label="Breadcrumb">
         <ol>
-          <li><a href="/">Home</a></li>
-          <li><a href="/properties/">Properties</a></li>
+          {crumbs.slice(0, -1).map((c) => <li><a href={c.href}>{c.name}</a></li>)}
           <li aria-current="page">{l.title}</li>
         </ol>
       </nav>

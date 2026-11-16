@@ -84,12 +84,16 @@ The dashboard's deploy command is `pnpm run deploy`, which applies D1 migrations
   - A filtered search over all prospects still reads every prospect row, because SQLite `LIKE` can't use an index. With tens of thousands of prospects and heavy daily searching, the $5 Workers Paid plan (25B reads/month) removes that concern.
 - **Cron triggers:** the free plan allows 5 per account; this Worker uses one.
 
-## Importing propCRM data (later)
+## Data from propCRM
 
-The schema keeps propCRM's ids and columns, so the data can be imported as-is. The differences:
+propCRM's production data was imported on 16 Nov 2026: 7 users, 4,548 prospects, 1,532 touches and 56 properties. Ids were kept, timestamps converted to ISO UTC, and each prospect's latest touch was filled in.
+- The 2 users who were inactive in propCRM came over deactivated, so their history keeps their names.
+- Imported users have no usable password. They sign in through a set-password link. An admin can issue a new one from User management → Password link, valid 7 days and usable once.
 
-- **Timestamps** become ISO 8601 UTC text.
-- **`tags` and `extra`** become JSON text.
-- **Inventory items** get the website columns with their defaults.
-- **Prospects** get `last_touched_at`, `last_touch_kind` and `last_touch_summary`, filled from each prospect's latest touch.
-- **Password hashes:** propCRM's bcrypt hashes can't be verified here (bcrypt doesn't fit the 10 ms CPU budget). After the import, give each user a new password from User management, or have them accept a fresh invite.
+## Signing in
+
+Users sign in with their email and password. To give someone access:
+- **New person:** User management → Invite user.
+- **Existing user who needs a password:** User management → Password link.
+
+Either way, share the link on WhatsApp or copy it; no email is sent.

@@ -2,11 +2,13 @@ import type { ExecutionContext, ScheduledController } from "@cloudflare/workers-
 import { recentRange, searchConsoleConfigured, syncSearchConsole } from "./analytics/sync";
 import { app } from "./app";
 import type { Env } from "./env";
+import { deleteOldEvents } from "./site-analytics/retention";
 import { processSiteRebuild } from "./website/rebuild";
 
 // Keys must match "triggers.crons" in wrangler.jsonc.
 const CRON_JOBS: Record<string, (env: Env) => Promise<void>> = {
   "30 2 * * *": async (env) => {
+    await deleteOldEvents(env.DB);
     if (!searchConsoleConfigured(env)) return;
     const range = recentRange(5);
     await syncSearchConsole(env, range.start, range.end);

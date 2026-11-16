@@ -10,3 +10,9 @@ export const INVENTORY_TYPE_LABELS: Record<InventoryType, string> = {
   house: "House",
   apartment: "Apartment",
 };
+
+/** The website title a property gets when none is written, e.g. "1 Kanal residential plot in Block C". */
+export function autoTitle(row: { size: string; type: InventoryType; block: string | null }): string {
+  const title = `${row.size} ${INVENTORY_TYPE_LABELS[row.type].toLowerCase()}${row.block ? ` in Block ${row.block}` : ""}`;
+  return title.charAt(0).toUpperCase() + title.slice(1);
+}

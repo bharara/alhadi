@@ -8,11 +8,15 @@
   "compatibility_flags": ["global_fetch_strictly_public"],
   "workers_dev": false,
   "preview_urls": false,
-  "routes": [{ "pattern": "crm.bestbuilderdeveloper.com", "custom_domain": true }],
+  "routes": [
+    { "pattern": "crm.bestbuilderdeveloper.com", "custom_domain": true },
+    // Analytics events from the public site, kept first-party so ad blockers don't drop them.
+    { "pattern": "bestbuilderdeveloper.com/a/*", "zone_name": "bestbuilderdeveloper.com" }
+  ],
   "assets": {
     "directory": "dist",
     "not_found_handling": "single-page-application",
-    "run_worker_first": ["/api/*"]
+    "run_worker_first": ["/api/*", "/a/*"]
   },
   "d1_databases": [
     {

@@ -27,3 +27,8 @@ export const idParam = z.object({ id: z.string().min(1).max(64) });
 export const isoInstant = z.iso.datetime({ offset: true }).transform((value) => new Date(value).toISOString());
 
 export const isoDate = z.iso.date();
+
+/** Trimmed text; blank becomes null. */
+export const optionalText = (max: number) => z.string().max(max).nullish().transform((v) => v?.trim() || null);
+
+export const requiredText = (max: number) => z.string().trim().min(1, "Required").max(max);

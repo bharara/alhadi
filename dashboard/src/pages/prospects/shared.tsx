@@ -1,32 +1,16 @@
-import React from "react";
-import { crm, fetchUsers, unwrap, type CrmUser, type Prospect } from "@/lib/api";
+import { crm, unwrap, type CrmUser, type Prospect } from "@/lib/api";
 import { formatWhen, titleFromKey, truncate } from "@/lib/format";
-import { STATUS_LABELS, STATUS_TONES, TOUCH_KIND_LABELS, type ProspectStatus, type TouchKind } from "@/lib/labels";
+import type { ProspectStatus, TouchKind } from "@worker/prospects/fields";
+import { STATUS_LABELS, STATUS_TONES, TOUCH_KIND_LABELS } from "@/lib/labels";
 import { Badge } from "@/ui/layout";
 import { Table, Td, Th, Tr } from "@/ui/table";
 
-export const STATUS_OPTIONS = (Object.keys(STATUS_LABELS) as ProspectStatus[]).map((value) => ({ value, label: STATUS_LABELS[value] }));
-export const KIND_OPTIONS = (Object.keys(TOUCH_KIND_LABELS) as TouchKind[]).map((value) => ({ value, label: TOUCH_KIND_LABELS[value] }));
-
 export type ProspectSearchBody = Parameters<typeof crm.prospects.search.$post>[0]["json"];
 
-/** Active users for pickers, loaded once per mount. */
-export function useCrmUsers(): CrmUser[] {
-  const [users, setUsers] = React.useState<CrmUser[]>([]);
-  React.useEffect(() => {
-    fetchUsers().then(setUsers, () => setUsers([]));
-  }, []);
-  return users;
-}
+// The Worker accepts at most this many ids per bulk request.
+export const BULK_LIMIT = 5000;
 
-export function useStringList(load: () => Promise<string[]>): string[] {
-  const [items, setItems] = React.useState<string[]>([]);
-  React.useEffect(() => {
-    load().then(setItems, () => setItems([]));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-  return items;
-}
+export const chunk = <T,>(items: T[], size: number): T[][] => Array.from({ length: Math.ceil(items.length / size) }, (_, i) => items.slice(i * size, (i + 1) * size));
 
 export const loadTags = () => unwrap(crm.prospects.tags.$get()).then((r) => r.tags);
 export const loadExtraFields = () => unwrap(crm.prospects["extra-fields"].$get()).then((r) => r.fields);
@@ -54,7 +38,6 @@ function Cell({ value, max = 100 }: { value: string | null | undefined; max?: nu
 
 const extraText = (value: unknown) => (value === null || value === undefined ? "" : typeof value === "string" ? value : JSON.stringify(value));
 
-/** The prospects table, with optional row selection. */
 export function ProspectTable({
   prospects,
   onOpen,

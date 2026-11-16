@@ -6,7 +6,7 @@ import type { InferResponseType } from "hono/client";
 import { crm, unwrap } from "@/lib/api";
 import { formatWhen } from "@/lib/format";
 import { QueryView, useAction, useQuery, useSearchState } from "@/lib/hooks";
-import { WEBSITE_PROJECTS } from "@/lib/labels";
+import { WEBSITE_PROJECTS } from "@worker/website/fields";
 import { useSession } from "@/session";
 import { Button } from "@/ui/button";
 import { Checkbox, Field, Input, Textarea } from "@/ui/form";
@@ -201,7 +201,7 @@ function BuildCard({ rebuild, onChange }: { rebuild: Rebuild; onChange: (rebuild
         )
       }
     >
-      <p className="text-xs text-muted-foreground">Cards on the home and project pages update within a minute. Property pages update after the site rebuilds.</p>
+      <p className="text-xs text-muted-foreground">Changes to published listings appear on the site after the automatic rebuild, a few minutes after your last edit.</p>
       <div className="mt-3 flex flex-col gap-2 text-sm">
         {rebuild.requested_at ? (
           <p className="rounded-md bg-amber-50 px-3 py-2 text-amber-900">Changes waiting to publish. The site rebuilds automatically within a few minutes.</p>

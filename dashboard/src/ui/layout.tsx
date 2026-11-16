@@ -114,7 +114,6 @@ export function Dialog({
   );
 }
 
-/** Confirmation for destructive actions. */
 export function ConfirmDialog({
   open,
   title,

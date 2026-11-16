@@ -1,11 +1,12 @@
 import { Hono } from "hono";
 import { z } from "zod";
 import type { D1PreparedStatement } from "@cloudflare/workers-types";
-import { all, batch, chunk, first, IN_CHUNK, newId, nowIso, parseJson, placeholders, stmt } from "../db";
+import { all, batch, chunk, first, IN_CHUNK, newId, nowIso, parseJson, placeholders, run, stmt } from "../db";
 import type { AuthedEnv } from "../env";
 import { ApiError } from "../http";
 import { idParam, isoInstant, zJson, zParam } from "../validation";
 import {
+  normalizePhoneOrThrow,
   normalizeProspectFields,
   normalizeTags,
   PROSPECT_STATUSES,
@@ -45,8 +46,7 @@ const searchSchema = z.object({
     .optional(),
   last_touched_before: isoInstant.nullish(),
   last_touched_after: isoInstant.nullish(),
-  touched_only: z.boolean().default(false),
-  untouched_only: z.boolean().default(false),
+  touched: z.boolean().nullish(),
   touch_kind: z.enum(TOUCH_KINDS).nullish(),
   assigned_user_id: z.string().max(64).nullish(),
   limit: z.number().int().min(1).max(5000).default(100),
@@ -65,8 +65,8 @@ const taskActionSchema = z.object({
   call_status: z.string().max(64).nullish(),
   summary: z.string().max(20000).nullish(),
   status: z.enum(PROSPECT_STATUSES).nullish(),
-  next_touch_at: isoInstant.nullish(),
-  clear_next_touch: z.boolean().default(false),
+  // null clears the follow-up; leaving it out keeps it.
+  next_touch_at: isoInstant.nullable().optional(),
 });
 
 type TouchRow = {
@@ -91,12 +91,11 @@ export const prospectRoutes = new Hono<AuthedEnv>()
     const db = c.env.DB;
     const body = c.req.valid("json");
     await assertUserExists(db, body.assigned_user_id);
-    const columns = normalizeProspectFields(body);
-    // propCRM writes the assignee on every create, so leaving it out unassigns an existing lead.
-    columns.assigned_user_id = body.assigned_user_id || null;
-    const existing = await first<{ id: string; extra: string }>(db, "SELECT id, extra FROM prospects WHERE phone = ?", [columns.phone!]);
+    // Adding a lead whose phone is already known updates that lead instead.
+    const existing = await first<{ id: string; extra: string }>(db, "SELECT id, extra FROM prospects WHERE phone = ?", [normalizePhoneOrThrow(body.phone).primary]);
+    const columns = normalizeProspectFields(body, existing ? parseJson(existing.extra, {}) : null);
     if (existing) {
-      await updateProspect(db, existing.id, normalizeWithBase(body, existing.extra, columns)).run();
+      await updateProspect(db, existing.id, columns).run();
       return c.json({ prospect: await loadProspect(db, existing.id), created: false });
     }
     const id = newId();
@@ -135,8 +134,8 @@ export const prospectRoutes = new Hono<AuthedEnv>()
         prospect_ids: idList,
         add_tags: z.array(z.string().max(255)).optional(),
         remove_tags: z.array(z.string().max(255)).optional(),
-        assigned_user_id: z.string().max(64).nullish(),
-        clear_assigned_user: z.boolean().default(false),
+        // null unassigns; leaving it out keeps each lead's assignee.
+        assigned_user_id: z.string().max(64).nullable().optional(),
         status: z.enum(PROSPECT_STATUSES).nullish(),
       }),
     ),
@@ -145,7 +144,7 @@ export const prospectRoutes = new Hono<AuthedEnv>()
       const body = c.req.valid("json");
       const addTags = normalizeTags(body.add_tags ?? []);
       const removeTags = new Set(normalizeTags(body.remove_tags ?? []).map((t) => t.toLowerCase()));
-      if (!addTags.length && !removeTags.size && !body.assigned_user_id && !body.clear_assigned_user && !body.status) {
+      if (!addTags.length && !removeTags.size && body.assigned_user_id === undefined && !body.status) {
         throw new ApiError(422, "Provide at least one bulk update");
       }
       await assertUserExists(db, body.assigned_user_id);
@@ -163,8 +162,7 @@ export const prospectRoutes = new Hono<AuthedEnv>()
             for (const tag of addTags) if (!lower.has(tag.toLowerCase())) tags.push(tag);
             columns.tags = JSON.stringify(tags);
           }
-          if (body.clear_assigned_user) columns.assigned_user_id = null;
-          else if (body.assigned_user_id) columns.assigned_user_id = body.assigned_user_id;
+          if (body.assigned_user_id !== undefined) columns.assigned_user_id = body.assigned_user_id;
           if (body.status) columns.status = body.status;
           const entries = Object.entries(columns);
           statements.push(
@@ -181,11 +179,7 @@ export const prospectRoutes = new Hono<AuthedEnv>()
     let deleted = 0;
     for (const ids of chunk([...new Set(c.req.valid("json").prospect_ids)], IN_CHUNK)) {
       const list = placeholders(ids.length);
-      const [, result] = await db.batch([
-        db.prepare(`DELETE FROM prospect_touches WHERE prospect_id IN (${list})`).bind(...ids),
-        db.prepare(`DELETE FROM prospects WHERE id IN (${list})`).bind(...ids),
-      ]);
-      deleted += result?.meta.changes ?? 0;
+      deleted += await run(db, `DELETE FROM prospects WHERE id IN (${list})`, ids);
     }
     return c.json({ deleted });
   })
@@ -194,7 +188,7 @@ export const prospectRoutes = new Hono<AuthedEnv>()
     const { where, params } = prospectWhere(body);
     const db = c.env.DB;
     const [rows, count] = await db.batch([
-      stmt(db, `${PROSPECT_SELECT} ${where} ORDER BY p.created_at DESC LIMIT ? OFFSET ?`, [...params, body.limit, body.offset]),
+      stmt(db, `${PROSPECT_SELECT} ${where} ORDER BY p.created_at DESC, p.id LIMIT ? OFFSET ?`, [...params, body.limit, body.offset]),
       stmt(db, `SELECT COUNT(*) AS n FROM prospects p LEFT JOIN users u ON u.id = p.assigned_user_id ${where}`, params),
     ]);
     return c.json({
@@ -221,7 +215,8 @@ export const prospectRoutes = new Hono<AuthedEnv>()
                     CASE p.status WHEN 'interested' THEN 0 WHEN 'warm' THEN 1 ELSE 2 END,
                     p.next_touch_at,
                     p.last_touched_at,
-                    p.created_at
+                    p.created_at,
+                    p.id
            LIMIT ? OFFSET ?`,
           [...params, body.limit, body.offset],
         ),
@@ -254,7 +249,7 @@ export const prospectRoutes = new Hono<AuthedEnv>()
     const db = c.env.DB;
     const id = c.req.valid("param").id;
     await loadProspect(db, id);
-    await db.batch([db.prepare("DELETE FROM prospect_touches WHERE prospect_id = ?").bind(id), db.prepare("DELETE FROM prospects WHERE id = ?").bind(id)]);
+    await run(db, "DELETE FROM prospects WHERE id = ?", [id]);
     return c.json({ ok: true });
   })
   .get("/:id/touches", zParam(idParam), async (c) => {
@@ -308,8 +303,7 @@ export const prospectRoutes = new Hono<AuthedEnv>()
     const now = nowIso();
     const columns: ProspectColumns = {};
     if (body.status) columns.status = body.status;
-    if (body.clear_next_touch) columns.next_touch_at = null;
-    else if (body.next_touch_at) columns.next_touch_at = body.next_touch_at;
+    if (body.next_touch_at !== undefined) columns.next_touch_at = body.next_touch_at;
     await db.batch([
       db
         .prepare("INSERT INTO prospect_touches (id, prospect_id, touching_user_id, kind, occurred_at, summary, call_status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
@@ -320,9 +314,3 @@ export const prospectRoutes = new Hono<AuthedEnv>()
     return c.json({ prospect: await loadProspect(db, id), touch: (await first<TouchRow>(db, `${TOUCH_SELECT} WHERE t.id = ?`, [touchId]))! });
   });
 
-/** Re-normalizes against the stored extra so secondary phones merge into it instead of replacing it. */
-function normalizeWithBase(body: z.infer<typeof prospectFieldsSchema>, storedExtra: string, columns: ProspectColumns): ProspectColumns {
-  if (body.extra !== undefined) return columns;
-  const merged = normalizeProspectFields(body, parseJson(storedExtra, {}));
-  return { ...columns, ...(merged.extra ? { extra: merged.extra } : {}) };
-}

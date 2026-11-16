@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import { crm, unwrap, type InventoryItem } from "@/lib/api";
 import { formatWhen } from "@/lib/format";
 import { QueryView, useAction, useQuery } from "@/lib/hooks";
-import { INVENTORY_TYPE_LABELS } from "@/lib/labels";
+import { INVENTORY_TYPE_LABELS } from "@worker/inventory/fields";
 import { Button } from "@/ui/button";
 import { Badge, Card, ConfirmDialog, PageHeader } from "@/ui/layout";
 import { formFromItem, InventoryForm, payloadFromForm, type InventoryFormState } from "./InventoryForm";
@@ -49,7 +49,7 @@ function InventoryDetail({ item, towns, onSaved }: { item: InventoryItem; towns:
   return (
     <form onSubmit={submit}>
       <PageHeader
-        crumbs={<Link to="/inventory" className="hover:underline">Inventory</Link>}
+        crumbs={<Link to="/inventory" className="hover:underline">Properties</Link>}
         title={`${item.house_number}${item.block ? `, Block ${item.block}` : ""}`}
         lede={`${INVENTORY_TYPE_LABELS[item.type]} in ${item.town}`}
         actions={

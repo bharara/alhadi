@@ -1,4 +1,4 @@
-import { batch, type Db } from "../db";
+import { nowIso, writeSetting, type Db } from "../db";
 import type { Env } from "../env";
 import { googleAccessToken, parseServiceAccount } from "./google";
 
@@ -6,6 +6,7 @@ const API = "https://www.googleapis.com/webmasters/v3/sites";
 const SCOPES = ["https://www.googleapis.com/auth/webmasters.readonly"];
 const MAX_ROWS = 25_000;
 const DAY_MS = 86_400_000;
+export const LAST_SYNC_KEY = "gsc_last_sync";
 
 type ApiRow = { keys: string[]; clicks: number; impressions: number; ctr: number; position: number };
 
@@ -21,7 +22,6 @@ export function recentRange(days: number): { start: string; end: string } {
   return { start: isoDay(new Date(end.getTime() - (days - 1) * DAY_MS)), end: isoDay(end) };
 }
 
-/** Replaces the stored Search Console data for [start, end] with what Google reports now. */
 export async function syncSearchConsole(env: Env, start: string, end: string): Promise<{ days: number; rows: number }> {
   if (!searchConsoleConfigured(env)) throw new Error("Search Console is not configured");
   const token = await googleAccessToken(parseServiceAccount(env.GSC_SERVICE_ACCOUNT_JSON!), SCOPES);
@@ -35,23 +35,21 @@ export async function syncSearchConsole(env: Env, start: string, end: string): P
     if (page.length < MAX_ROWS) break;
   }
 
+  // One atomic batch per day, so a failure never leaves a day half-replaced.
   const db: Db = env.DB;
-  await db.batch([
-    db.prepare("DELETE FROM gsc_daily WHERE date BETWEEN ? AND ?").bind(start, end),
-    db.prepare("DELETE FROM gsc_rows WHERE date BETWEEN ? AND ?").bind(start, end),
-  ]);
-  await batch(
-    db,
-    [
-      ...daily.map((r) => db.prepare("INSERT INTO gsc_daily (date, clicks, impressions, position) VALUES (?, ?, ?, ?)").bind(r.keys[0]!, r.clicks, r.impressions, r.position)),
-      ...rows.map((r) =>
-        db
-          .prepare("INSERT OR REPLACE INTO gsc_rows (date, page, query, clicks, impressions, position) VALUES (?, ?, ?, ?, ?, ?)")
-          .bind(r.keys[0]!, r.keys[1]!, r.keys[2]!, r.clicks, r.impressions, r.position),
+  const rowsByDay = Map.groupBy(rows, (r) => r.keys[0]!);
+  for (const day of daily) {
+    const date = day.keys[0]!;
+    await db.batch([
+      db.prepare("DELETE FROM gsc_daily WHERE date = ?").bind(date),
+      db.prepare("DELETE FROM gsc_rows WHERE date = ?").bind(date),
+      db.prepare("INSERT INTO gsc_daily (date, clicks, impressions, position) VALUES (?, ?, ?, ?)").bind(date, day.clicks, day.impressions, day.position),
+      ...(rowsByDay.get(date) ?? []).map((r) =>
+        db.prepare("INSERT OR REPLACE INTO gsc_rows (date, page, query, clicks, impressions, position) VALUES (?, ?, ?, ?, ?, ?)").bind(date, r.keys[1]!, r.keys[2]!, r.clicks, r.impressions, r.position),
       ),
-    ],
-    100,
-  );
+    ]);
+  }
+  await writeSetting(db, LAST_SYNC_KEY, { at: nowIso(), start, end });
   return { days: daily.length, rows: rows.length };
 }
 

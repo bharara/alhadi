@@ -19,18 +19,18 @@ const rate = (value: number, total: number) => (total ? Math.round((value / tota
 
 export const reportRoutes = new Hono<AuthedEnv>().get(
   "/report",
-  zQuery(z.object({ start_date: isoDate, end_date: isoDate, user_id: z.string().max(64).optional() })),
+  zQuery(z.object({ start_date: isoDate, end_date: isoDate })),
   async (c) => {
-    const { start_date, end_date, user_id } = c.req.valid("query");
+    const { start_date, end_date } = c.req.valid("query");
     const start = new Date(`${start_date}T00:00:00.000Z`);
     const end = new Date(new Date(`${end_date}T00:00:00.000Z`).getTime() + DAY_MS);
     if (start >= end) throw new ApiError(422, "start_date must be on or before end_date");
     const spanDays = Math.round((end.getTime() - start.getTime()) / DAY_MS);
-    if (spanDays > 366) throw new ApiError(422, "The date range can be at most 365 days");
+    if (spanDays > 365) throw new ApiError(422, "The date range can be at most 365 days");
     const db = c.env.DB;
     const window = [start.toISOString(), end.toISOString()];
 
-    const [users, prospects, touches] = await Promise.all([
+    const [reportUsers, prospects, touches] = await Promise.all([
       all<ReportUser>(db, "SELECT id, username FROM users WHERE is_active = 1 AND role != 'admin' ORDER BY username"),
       all<ProspectRow>(db, "SELECT id, assigned_user_id, tags, status FROM prospects WHERE created_at >= ? AND created_at < ?", window),
       all<TouchRow>(
@@ -40,7 +40,6 @@ export const reportRoutes = new Hono<AuthedEnv>().get(
         window,
       ),
     ]);
-    const reportUsers = user_id ? users.filter((u) => u.id === user_id) : users;
     const reportIds = new Set(reportUsers.map((u) => u.id));
     const bucketOf = (id: string | null) => (id && reportIds.has(id) ? id : null);
 
@@ -48,7 +47,6 @@ export const reportRoutes = new Hono<AuthedEnv>().get(
     const visited = new Set(touches.filter((t) => t.kind === "visit").map((t) => t.prospect_id));
     const assigned = prospects.filter((p) => p.assigned_user_id).length;
 
-    // Activity by salesperson.
     const activity = new Map<string | null, Record<ActivityKind, number>>();
     for (const touch of touches) {
       const key = bucketOf(touch.touching_user_id);
@@ -64,11 +62,12 @@ export const reportRoutes = new Hono<AuthedEnv>().get(
     const unknownActivity = activityRow(null, UNASSIGNED);
     if (unknownActivity.total > 0) activityRows.push(unknownActivity);
 
-    // Cohort: prospects created in the window, by assignee.
     const cohort = new Map<string | null, ProspectRow[]>();
     for (const prospect of prospects) {
       const key = bucketOf(prospect.assigned_user_id);
-      cohort.set(key, [...(cohort.get(key) ?? []), prospect]);
+      const members = cohort.get(key) ?? [];
+      members.push(prospect);
+      cohort.set(key, members);
     }
     const cohortRow = (id: string | null, username: string) => {
       const members = cohort.get(id) ?? [];

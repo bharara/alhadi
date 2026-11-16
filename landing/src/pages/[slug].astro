@@ -133,7 +133,7 @@ const planHref = waLink(`Assalam o Alaikum, please share the latest master plan 
             ))
           }
         </div>
-        <Listings mode="project" project={{ slug: p.slug, fullName: p.fullName }} />
+        <Listings mode="project" projectSlug={p.slug} />
         <p class="note">Plots available today change daily. <a href={pricesHref} target="_blank" rel="noopener">Ask for the current list →</a></p>
       </div>
     </section>

@@ -1,6 +1,4 @@
-// PBKDF2-SHA256 over an HMAC of the password keyed with a secret pepper.
-// Iterations stay low because the Workers free plan allows 10 ms of CPU per request;
-// the pepper (a Worker secret, never in D1) is what protects a leaked database.
+// Few PBKDF2 iterations fit the free plan's 10 ms CPU; the secret pepper is what protects a leaked database.
 const ITERATIONS = 10_000;
 const encoder = new TextEncoder();
 
@@ -30,11 +28,6 @@ function constantTimeEqual(a: Uint8Array, b: Uint8Array): boolean {
   let diff = 0;
   for (let i = 0; i < a.length; i++) diff |= a[i]! ^ b[i]!;
   return diff === 0;
-}
-
-export async function sha256Hex(value: string): Promise<string> {
-  const digest = await crypto.subtle.digest("SHA-256", encoder.encode(value));
-  return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
 export function randomToken(): string {

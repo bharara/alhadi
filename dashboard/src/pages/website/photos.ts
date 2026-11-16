@@ -1,13 +1,13 @@
-import { RequestError } from "@/lib/api";
+import type { InferResponseType } from "hono/client";
+import { crm, unwrap } from "@/lib/api";
 
-export const MAX_PHOTOS = 30;
 const FULL = 1600;
 const THUMB = 600;
 
 type Variant = { blob: Blob; width: number; height: number };
 
 /** Resizes in the browser so the Worker only stores files: a ≤1600px full image and a ≤600px thumbnail, both WebP. */
-export async function preparePhoto(file: File): Promise<{ full: Variant; thumb: Variant }> {
+async function preparePhoto(file: File): Promise<{ full: Variant; thumb: Variant }> {
   let bitmap: ImageBitmap;
   try {
     bitmap = await createImageBitmap(file, { imageOrientation: "from-image" });
@@ -38,19 +38,16 @@ async function encode(bitmap: ImageBitmap, maxEdge: number, quality: number): Pr
   return { blob, width, height };
 }
 
-export type UploadedPhoto = { id: string; width: number; height: number; alt: string | null; sort_order: number; full: string; thumb: string };
+type Uploaded = InferResponseType<(typeof crm.listings)[":id"]["photos"]["$post"], 201>;
 
-export async function uploadPhoto(listingId: string, file: File, alt: string): Promise<UploadedPhoto[]> {
+// Multipart isn't modelled by the typed client, so this posts the form directly.
+export async function uploadPhoto(listingId: string, file: File): Promise<Uploaded["photos"]> {
   const { full, thumb } = await preparePhoto(file);
   const form = new FormData();
-  const base = file.name.replace(/\.[^.]+$/, "") || "photo";
-  form.append("full", new File([full.blob], `${base}-1600.webp`, { type: "image/webp" }));
-  form.append("thumb", new File([thumb.blob], `${base}-600.webp`, { type: "image/webp" }));
+  form.append("full", new File([full.blob], "full.webp", { type: "image/webp" }));
+  form.append("thumb", new File([thumb.blob], "thumb.webp", { type: "image/webp" }));
   form.append("width", String(full.width));
   form.append("height", String(full.height));
-  if (alt.trim()) form.append("alt", alt.trim());
-  const response = await fetch(`/api/crm/listings/${encodeURIComponent(listingId)}/photos`, { method: "POST", body: form, credentials: "include" });
-  const data = (await response.json().catch(() => null)) as { detail?: string; photos?: UploadedPhoto[] } | null;
-  if (!response.ok || !data?.photos) throw new RequestError(data?.detail || `Upload failed (${response.status})`, response.status);
-  return data.photos;
+  const response = fetch(`/api/crm/listings/${encodeURIComponent(listingId)}/photos`, { method: "POST", body: form, credentials: "include" });
+  return (await unwrap(response as Promise<Response & { json(): Promise<Uploaded> }>)).photos;
 }

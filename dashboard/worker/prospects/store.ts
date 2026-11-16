@@ -79,8 +79,7 @@ export type ProspectFilters = {
   field_filters?: { field: string; operator: (typeof FIELD_FILTER_OPERATORS)[number]; value?: string | null }[];
   last_touched_before?: string | null;
   last_touched_after?: string | null;
-  touched_only?: boolean;
-  untouched_only?: boolean;
+  touched?: boolean | null;
   touch_kind?: string | null;
   assigned_user_id?: string | null;
 };
@@ -114,7 +113,6 @@ export function prospectWhere(filters: ProspectFilters): { where: string; params
     params.push(filters.assigned_user_id);
   }
   for (const filter of filters.field_filters ?? []) {
-    if (!FIELD_FILTER_FIELD.test(filter.field)) continue;
     const value = filter.value?.trim() ?? "";
     if (filter.field === "assigned_user") {
       if (filter.operator === "empty") clauses.push("p.assigned_user_id IS NULL");
@@ -150,8 +148,8 @@ export function prospectWhere(filters: ProspectFilters): { where: string; params
     }
   }
   if (filters.touch_kind) {
-    clauses.push("p.last_touch_kind LIKE ?");
-    params.push(`${filters.touch_kind}%`);
+    clauses.push("p.last_touch_kind = ?");
+    params.push(filters.touch_kind);
   }
   if (filters.last_touched_before) {
     clauses.push("p.last_touched_at < ?");
@@ -161,7 +159,7 @@ export function prospectWhere(filters: ProspectFilters): { where: string; params
     clauses.push("p.last_touched_at >= ?");
     params.push(filters.last_touched_after);
   }
-  if (filters.touched_only) clauses.push("p.last_touched_at IS NOT NULL");
-  if (filters.untouched_only) clauses.push("p.last_touched_at IS NULL");
+  if (filters.touched === true) clauses.push("p.last_touched_at IS NOT NULL");
+  if (filters.touched === false) clauses.push("p.last_touched_at IS NULL");
   return { where: clauses.length ? `WHERE ${clauses.join(" AND ")}` : "", params };
 }

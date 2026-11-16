@@ -24,12 +24,11 @@ When the inventory item is marked sold, its listing hides from the site, or show
 - They are stored in R2 bucket `bbd-media`, served from `https://media.bestbuilderdeveloper.com`.
 - The first photo is the cover and the share image.
 
-**Two ways the site shows listings:**
-- **Live cards** (home "Available now", project pages) read `GET /api/public/listings`. It is cached for 60 seconds, and edits clear the cache.
-- **Static pages** (`/properties/` and `/properties/<slug>/`) are built by the landing site from `GET /api/public/listings/full`.
-  - A change to a published listing marks the site for rebuild.
-  - A 5-minute cron starts one Pages build once edits have settled for 2 minutes. Admins can also click "Rebuild site now" under Website listings.
-  - The build uses `PAGES_API_TOKEN` and builds `LANDING_BRANCH`.
+**How the site shows listings:** everything is static. The landing build reads `GET /api/public/listings/full` and renders:
+- the home "Available now" section and each project page's listings
+- `/properties/` and `/properties/<slug>/`
+
+A change to a published listing (or to a field it shows, or the website settings) marks the site for rebuild. A 5-minute cron starts one Pages build once edits have settled for 2 minutes, so changes appear within a few minutes. Admins can also click "Rebuild site now" under Website listings. The build uses `PAGES_API_TOKEN` and builds `LANDING_BRANCH`.
 
 ## Local development
 

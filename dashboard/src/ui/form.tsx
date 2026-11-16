@@ -16,7 +16,7 @@ export const Textarea = React.forwardRef<HTMLTextAreaElement, React.TextareaHTML
   return <textarea ref={ref} className={cn(control, "py-2 leading-relaxed", className)} {...props} />;
 });
 
-export type Option = { value: string; label: string };
+type Option = { value: string; label: string };
 
 /** Native select; `placeholder` adds an empty first option. */
 export function Select({

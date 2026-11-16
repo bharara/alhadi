@@ -1,6 +1,6 @@
 import { Lock } from "lucide-react";
 import type { InventoryItem } from "@/lib/api";
-import { CONTACT_KINDS, INVENTORY_STATUSES, INVENTORY_TYPE_LABELS, INVENTORY_TYPES } from "@/lib/labels";
+import { CONTACT_KINDS, INVENTORY_STATUSES, INVENTORY_TYPE_LABELS, INVENTORY_TYPES } from "@worker/inventory/fields";
 import { Field, Input, Select, Textarea } from "@/ui/form";
 import { Badge, Card } from "@/ui/layout";
 
@@ -50,7 +50,6 @@ export function formFromItem(item: InventoryItem): InventoryFormState {
   };
 }
 
-/** The JSON body for create and update. */
 export function payloadFromForm(form: InventoryFormState) {
   return { ...form, block: form.block || null, details: form.details || null, asking_price: form.asking_price || null };
 }

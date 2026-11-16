@@ -1,10 +1,12 @@
+import type { InferResponseType } from "hono/client";
 import React from "react";
 import Papa from "papaparse";
 import { toast } from "sonner";
 import { Upload } from "lucide-react";
 import { crm, unwrap } from "@/lib/api";
 import { useAction } from "@/lib/hooks";
-import { PROSPECT_STATUSES, STATUS_LABELS, type ProspectStatus } from "@/lib/labels";
+import { PROSPECT_STATUSES, type ProspectStatus } from "@worker/prospects/fields";
+import { STATUS_LABELS } from "@/lib/labels";
 import { Button } from "@/ui/button";
 import { Field, Input, Select, TagsInput } from "@/ui/form";
 import { Badge, Dialog, Pagination } from "@/ui/layout";
@@ -13,7 +15,7 @@ import { Table, Td, Th, Tr } from "@/ui/table";
 type Target = "ignore" | "phone" | "email" | "name" | "company" | "title" | "tags" | "status" | "notes" | "custom";
 type Mapping = { header: string; target: Target; key: string };
 type ImportRow = Parameters<typeof crm.prospects.import.$post>[0]["json"]["prospects"][number];
-type ImportResult = Awaited<ReturnType<typeof runImport>>;
+type ImportResult = InferResponseType<typeof crm.prospects.import.$post, 200>;
 
 const STANDARD: Exclude<Target, "ignore" | "custom">[] = ["phone", "email", "name", "company", "title", "tags", "status", "notes"];
 const TARGET_OPTIONS = [
@@ -61,9 +63,11 @@ function normalizeStatus(raw: string): ProspectStatus | null {
   return (PROSPECT_STATUSES as readonly string[]).includes(status) ? (status as ProspectStatus) : null;
 }
 
-function buildRows(records: Record<string, string>[], mappings: Mapping[], importTag: string[]): ImportRow[] {
+// `lines[i]` is the CSV line (header is line 1) that `rows[i]` came from.
+function buildRows(records: Record<string, string>[], mappings: Mapping[], importTag: string[]): { rows: ImportRow[]; lines: number[] } {
   const rows: ImportRow[] = [];
-  for (const record of records) {
+  const lines: number[] = [];
+  for (const [recordIndex, record] of records.entries()) {
     const row: ImportRow = { phone: null };
     const extra: Record<string, string> = {};
     let tags: string[] = [];
@@ -81,11 +85,26 @@ function buildRows(records: Record<string, string>[], mappings: Mapping[], impor
     if (Object.keys(extra).length) row.extra = extra;
     if (!row.status) delete row.status;
     rows.push(row);
+    lines.push(recordIndex + 2);
   }
-  return rows;
+  return { rows, lines };
 }
 
-const runImport = (prospects: ImportRow[]) => unwrap(crm.prospects.import.$post({ json: { prospects } }));
+const IMPORT_CHUNK = 1000;
+
+/** Imports in chunks; `index` in the result is the CSV line number. */
+async function runImport(rows: ImportRow[], lines: number[], onProgress: (done: number) => void): Promise<ImportResult> {
+  const total: ImportResult = { created: 0, updated: 0, errors: [], existing: [] };
+  for (let start = 0; start < rows.length; start += IMPORT_CHUNK) {
+    const part = await unwrap(crm.prospects.import.$post({ json: { prospects: rows.slice(start, start + IMPORT_CHUNK) } }));
+    total.created += part.created;
+    total.updated += part.updated;
+    total.errors.push(...part.errors.map((e) => ({ ...e, index: lines[start + e.index]! })));
+    total.existing.push(...part.existing.map((e) => ({ ...e, index: lines[start + e.index]! })));
+    onProgress(Math.min(rows.length, start + IMPORT_CHUNK));
+  }
+  return total;
+}
 
 export function ImportDialog({ open, onClose, onImported, tagSuggestions }: { open: boolean; onClose: () => void; onImported: () => void; tagSuggestions: string[] }) {
   const [step, setStep] = React.useState<"upload" | "map" | "done">("upload");
@@ -96,6 +115,7 @@ export function ImportDialog({ open, onClose, onImported, tagSuggestions }: { op
   const [result, setResult] = React.useState<ImportResult | null>(null);
   const [existingOffset, setExistingOffset] = React.useState(0);
   const fileInput = React.useRef<HTMLInputElement>(null);
+  const [progress, setProgress] = React.useState(0);
   const submit = useAction(runImport);
 
   React.useEffect(() => {
@@ -152,10 +172,11 @@ export function ImportDialog({ open, onClose, onImported, tagSuggestions }: { op
           : new Set(customKeys).size !== customKeys.length
             ? "Custom field keys must be unique"
             : null;
-  const rows = React.useMemo(() => (problem ? [] : buildRows(records, mappings, importTag)), [problem, records, mappings, importTag]);
+  const { rows, lines } = React.useMemo(() => (problem ? { rows: [], lines: [] } : buildRows(records, mappings, importTag)), [problem, records, mappings, importTag]);
 
   async function start() {
-    const response = await submit.run(rows);
+    setProgress(0);
+    const response = await submit.run(rows, lines, setProgress);
     if (!response) return;
     setResult(response);
     setStep("done");
@@ -175,7 +196,7 @@ export function ImportDialog({ open, onClose, onImported, tagSuggestions }: { op
           Back
         </Button>
         <Button disabled={Boolean(problem) || !rows.length} pending={submit.pending} onClick={start}>
-          Import {rows.length} prospect{rows.length === 1 ? "" : "s"}
+          {submit.pending && rows.length > IMPORT_CHUNK ? `Importing ${progress} of ${rows.length}…` : `Import ${rows.length} prospect${rows.length === 1 ? "" : "s"}`}
         </Button>
       </>
     ) : (
@@ -286,7 +307,7 @@ export function ImportDialog({ open, onClose, onImported, tagSuggestions }: { op
             <ul className="max-h-32 overflow-y-auto text-sm text-destructive">
               {result.errors.map((e) => (
                 <li key={e.index}>
-                  Row {e.index + 2}: {e.detail}
+                  Row {e.index}: {e.detail}
                 </li>
               ))}
             </ul>

@@ -4,7 +4,7 @@ import { toast } from "sonner";
 import { Button } from "@/ui/button";
 import { errorMessage, isSignedOut } from "./api";
 
-export type QueryState<T> = { status: "loading" } | { status: "error"; message: string } | { status: "ready"; data: T; refreshing: boolean };
+type QueryState<T> = { status: "loading" } | { status: "error"; message: string } | { status: "ready"; data: T; refreshing: boolean };
 
 export type Query<T> = QueryState<T> & {
   retry: () => void;
@@ -28,8 +28,7 @@ export function useQuery<T>(load: () => Promise<T>, key: unknown = null): Query<
     return () => {
       alive = false;
     };
-    // `load` is usually inline; the query reloads on `key`, not on every render.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- `load` is usually inline; reload on `key` only.
   }, [keyText, attempt]);
 
   const retry = React.useCallback(() => setAttempt((n) => n + 1), []);
@@ -40,7 +39,8 @@ export function useQuery<T>(load: () => Promise<T>, key: unknown = null): Query<
   return { ...state, retry, setData };
 }
 
-/** A page body for its query: a spinner, the error with a retry, or the content. */
+export const dataOr = <T,>(query: Query<T>, fallback: T): T => (query.status === "ready" ? query.data : fallback);
+
 export function QueryView<T>({ query, children }: { query: Query<T>; children: (data: T) => React.ReactNode }) {
   if (query.status === "loading") return <Spinner />;
   if (query.status === "error")
@@ -63,7 +63,7 @@ export function Spinner({ className = "py-16" }: { className?: string }) {
   );
 }
 
-export function showError(error: unknown): void {
+function showError(error: unknown): void {
   if (!isSignedOut(error)) toast.error(errorMessage(error));
 }
 

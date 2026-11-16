@@ -35,7 +35,7 @@ export function UsersPage() {
   const [created, setCreated] = React.useState<Invite | null>(null);
 
   const setRole = useAction((id: string, role: Role) => unwrap(admin.users[":id"].role.$put({ param: { id }, json: { role } })));
-  const setActive = useAction((id: string, active: boolean) => unwrap(admin.users[":id"].active.$post({ param: { id }, query: { is_active: active ? "true" : "false" } })));
+  const setActive = useAction((id: string, active: boolean) => unwrap(admin.users[":id"].active.$post({ param: { id }, json: { is_active: active } })));
   const revoke = useAction((id: string) => unwrap(admin.invites[":id"].$delete({ param: { id } })));
   const replaceUser = (next: ManagedUser) => users.setData((list) => list.map((u) => (u.id === next.id ? next : u)));
 

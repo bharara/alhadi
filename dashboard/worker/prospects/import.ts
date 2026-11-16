@@ -30,10 +30,7 @@ export type ImportResult = {
   }[];
 };
 
-/**
- * Creates new prospects and fills in existing ones matched by email or phone.
- * Updates only overwrite the fields a row actually has a value for.
- */
+// New rows are created; rows matching a prospect by email or phone fill in only the values they have.
 export async function importProspects(db: Db, rows: ProspectFieldsInput[]): Promise<ImportResult> {
   const result: ImportResult = { created: 0, updated: 0, errors: [], existing: [] };
   const normalized: (ProspectColumns | null)[] = rows.map((row, index) => {
@@ -83,16 +80,17 @@ export async function importProspects(db: Db, rows: ProspectFieldsInput[]): Prom
     const existing = emailMatch ?? phoneMatch;
     if (!existing) {
       // A later row for the same person replaces the earlier one in this batch.
-      const duplicate = (columns.email ? createIndexByEmail.get(columns.email) : undefined) ?? createIndexByPhone.get(columns.phone!);
-      if (duplicate !== undefined) {
-        creates[duplicate] = columns;
-      } else {
-        creates.push(columns);
-        result.created += 1;
-        const at = creates.length - 1;
-        if (columns.email) createIndexByEmail.set(columns.email, at);
-        createIndexByPhone.set(columns.phone!, at);
+      const byEmail = columns.email ? createIndexByEmail.get(columns.email) : undefined;
+      const byPhone = createIndexByPhone.get(columns.phone!);
+      if (byEmail !== undefined && byPhone !== undefined && byEmail !== byPhone) {
+        result.errors.push({ index, detail: "Email and phone match different rows in this file" });
+        return;
       }
+      const at = byEmail ?? byPhone ?? creates.length;
+      if (at === creates.length) result.created += 1;
+      creates[at] = columns;
+      if (columns.email) createIndexByEmail.set(columns.email, at);
+      createIndexByPhone.set(columns.phone!, at);
       return;
     }
     result.existing.push({
@@ -105,10 +103,10 @@ export async function importProspects(db: Db, rows: ProspectFieldsInput[]): Prom
       status: existing.status,
       assigned_user_username: existing.assigned_user_username,
     });
-    const update = { ...columns };
-    // Keep the matched record's phone when it was matched by email; secondaries still merge into its extra.
+    // New custom fields and secondary phones merge into the stored extra; an email match keeps its phone.
+    const row = withoutBlanks(rows[index]!);
+    const update = normalizeProspectFields({ ...row, extra: { ...parseJson(existing.extra, {}), ...(row.extra ?? {}) } });
     if (!phoneMatch) delete update.phone;
-    if (update.extra) update.extra = JSON.stringify({ ...parseJson(existing.extra, {}), ...parseJson(update.extra, {}) });
     statements.push(updateProspect(db, existing.id, update));
     result.updated += 1;
   });
@@ -119,7 +117,6 @@ export async function importProspects(db: Db, rows: ProspectFieldsInput[]): Prom
   return result;
 }
 
-/** Import rows only carry the values a CSV cell actually had. */
 function withoutBlanks(row: ProspectFieldsInput): ProspectFieldsInput {
   const out: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(row)) {

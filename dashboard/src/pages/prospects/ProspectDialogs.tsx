@@ -1,12 +1,13 @@
 import React from "react";
 import { toast } from "sonner";
-import { crm, unwrap, type CrmUser, type Prospect } from "@/lib/api";
+import { crm, unwrap, type CrmUser } from "@/lib/api";
 import { useAction } from "@/lib/hooks";
-import type { ProspectStatus } from "@/lib/labels";
+import type { ProspectStatus } from "@worker/prospects/fields";
 import { Button } from "@/ui/button";
 import { Checkbox, Field, Input, Select, TagsInput } from "@/ui/form";
 import { Dialog } from "@/ui/layout";
-import { STATUS_OPTIONS, userOptions } from "./shared";
+import { STATUS_OPTIONS } from "@/lib/labels";
+import { BULK_LIMIT, chunk, userOptions } from "./shared";
 
 const emptyProspect = { phone: "", email: "", name: "", company: "", title: "", assigned_user_id: "", tags: [] as string[], status: "cold" as ProspectStatus };
 
@@ -28,9 +29,8 @@ export function AddProspectDialog({
     if (open) setForm(emptyProspect);
   }, [open]);
   const set = <K extends keyof typeof form>(key: K, value: (typeof form)[K]) => setForm((f) => ({ ...f, [key]: value }));
-  // The Worker answers created: true or false; one result type covers both.
   const save = useAction(() =>
-    unwrap<{ prospect: Prospect; created: boolean }>(
+    unwrap(
       crm.prospects.$post({
         json: {
           phone: form.phone,
@@ -42,7 +42,7 @@ export function AddProspectDialog({
           tags: form.tags,
           status: form.status,
         },
-      }) as Promise<never>,
+      }),
     ),
   );
 
@@ -132,20 +132,21 @@ export function BulkEditDialog({
     setStatus("");
   }, [open]);
 
-  const save = useAction(() =>
-    unwrap(
-      crm.prospects.bulk.$patch({
-        json: {
-          prospect_ids: ids,
-          add_tags: addTags,
-          remove_tags: removeTags,
-          assigned_user_id: clearAssigned ? null : assigned || null,
-          clear_assigned_user: clearAssigned,
-          status: (status || null) as ProspectStatus | null,
-        },
-      }),
-    ),
-  );
+  const save = useAction(async () => {
+    let updated = 0;
+    for (const prospect_ids of chunk(ids, BULK_LIMIT)) {
+      const json = {
+        prospect_ids,
+        add_tags: addTags,
+        remove_tags: removeTags,
+        // null clears the assignee; leaving the key out keeps it.
+        ...(clearAssigned ? { assigned_user_id: null } : assigned ? { assigned_user_id: assigned } : {}),
+        status: (status || null) as ProspectStatus | null,
+      };
+      updated += (await unwrap(crm.prospects.bulk.$patch({ json }))).updated;
+    }
+    return { updated };
+  });
 
   async function submit() {
     const result = await save.run();

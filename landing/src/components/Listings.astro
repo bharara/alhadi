@@ -1,139 +1,42 @@
 ---
-import { contact, listingsApi } from '../data/site';
+import ListingCard from './ListingCard.astro';
+import { listings, settings } from '../data/listings';
 
 interface Props {
-  /** "home" shows items featured on the home page; "project" shows one project's items. */
+  /** "home" shows listings featured on the home page; "project" shows one project's listings. */
   mode: 'home' | 'project';
-  project?: { slug: string; fullName: string };
+  projectSlug?: string;
 }
 
-const { mode, project } = Astro.props;
+const { mode, projectSlug } = Astro.props;
+const config = mode === 'home' ? settings.home : settings.project;
+const shown =
+  mode === 'home' ? listings.filter((l) => l.featured).slice(0, settings.home.limit) : listings.filter((l) => l.project_slug === projectSlug);
 ---
 
-<section
-  class:list={['listings', mode]}
-  data-listings
-  data-mode={mode}
-  data-project={project?.slug}
-  data-project-name={project?.fullName}
-  data-api={listingsApi}
-  data-whatsapp={contact.whatsapp}
-  aria-labelledby={`listings-title-${mode}`}
-  hidden
->
-  <div class:list={['head', { wrap: mode === 'home' }]}>
-    {mode === 'home' && <span class="kicker">Inventory</span>}
-    <h2 id={`listings-title-${mode}`} data-heading></h2>
-    <p class="intro" data-intro hidden></p>
-  </div>
-  <div class:list={['grid', { wrap: mode === 'home' }]} data-grid></div>
-  {
-    mode === 'home' && (
-      <div class="wrap more">
-        <a class="btn btn-outline" href="/properties/">See all properties →</a>
+{
+  config.enabled && shown.length > 0 && (
+    <section class:list={['listings', mode]} aria-labelledby={`listings-title-${mode}`}>
+      <div class:list={['head', { wrap: mode === 'home' }]}>
+        {mode === 'home' && <span class="kicker">Inventory</span>}
+        <h2 id={`listings-title-${mode}`}>{config.heading}</h2>
+        {mode === 'home' && settings.home.intro && <p class="intro">{settings.home.intro}</p>}
       </div>
-    )
-  }
-</section>
-
-<script>
-  type Photo = { full: string; thumb: string; width: number; height: number; alt: string | null };
-  type Item = {
-    id: string;
-    slug: string;
-    cover: Photo | null;
-    project_slug: string | null;
-    project_name: string | null;
-    title: string;
-    type_label: string;
-    size: string;
-    block: string | null;
-    number: string | null;
-    price: string | null;
-    details: string | null;
-    status: 'available' | 'sold';
-    featured: boolean;
-  };
-  type Payload = {
-    settings: { home: { enabled: boolean; heading: string; intro: string; limit: number }; project: { enabled: boolean; heading: string } };
-    items: Item[];
-  };
-
-  const el = <K extends keyof HTMLElementTagNameMap>(tag: K, className: string, text?: string) => {
-    const node = document.createElement(tag);
-    node.className = className;
-    if (text) node.textContent = text;
-    return node;
-  };
-
-  function card(item: Item, mode: string, whatsapp: string, projectName: string | undefined): HTMLElement {
-    const sold = item.status === 'sold';
-    const article = el('article', `lcard${sold ? ' sold' : ''}`);
-    const main = el('a', 'lmain') as HTMLAnchorElement;
-    main.href = `/properties/${encodeURIComponent(item.slug)}/`;
-    if (item.cover) {
-      const ph = el('div', 'lph');
-      const img = el('img', '') as HTMLImageElement;
-      img.src = item.cover.thumb;
-      img.srcset = `${item.cover.thumb} 600w, ${item.cover.full} 1600w`;
-      img.sizes = '(max-width: 560px) 100vw, (max-width: 1000px) 50vw, 420px';
-      img.alt = item.cover.alt ?? item.title;
-      img.width = item.cover.width;
-      img.height = item.cover.height;
-      img.loading = 'lazy';
-      img.decoding = 'async';
-      ph.append(img);
-      main.append(ph);
-    }
-    const body = el('div', 'lbody');
-    const tags = [item.type_label, mode === 'home' ? item.project_name : null].filter(Boolean).join(' · ');
-    body.append(el('span', 'ltag', tags));
-    if (sold) body.append(el('span', 'lsold', 'Sold'));
-    body.append(el('h3', 'ltitle', item.title));
-    const facts = [item.size, item.block ? `Block ${item.block}` : null, item.number ? `No. ${item.number}` : null].filter(Boolean).join(' · ');
-    body.append(el('p', 'lfacts', facts));
-    if (item.details) body.append(el('p', 'ldetails', item.details));
-    body.append(el('p', 'lprice', item.price ?? 'Call for price'));
-    main.append(body);
-    article.append(main);
-    if (!sold) {
-      const where = [item.project_name ?? projectName, item.block ? `Block ${item.block}` : null, item.number ? `No. ${item.number}` : null].filter(Boolean).join(', ');
-      const pageUrl = new URL(main.href, location.origin).href;
-      const message = `Assalam o Alaikum, I'm interested in the ${item.title}${where ? ` (${where})` : ''}. Is it still available? ${pageUrl}`;
-      const link = el('a', 'lcta', 'Ask on WhatsApp →') as HTMLAnchorElement;
-      link.href = `https://wa.me/${whatsapp}?text=${encodeURIComponent(message)}`;
-      link.target = '_blank';
-      link.rel = 'noopener';
-      article.append(link);
-    }
-    return article;
-  }
-
-  async function render(section: HTMLElement) {
-    const { mode = 'home', project, projectName, api = '', whatsapp = '' } = section.dataset;
-    const response = await fetch(`${api}/api/public/listings`);
-    if (!response.ok) return;
-    const { settings, items } = (await response.json()) as Payload;
-
-    const config = mode === 'home' ? settings.home : settings.project;
-    if (!config.enabled) return;
-    const chosen = mode === 'home' ? items.filter((i) => i.featured).slice(0, settings.home.limit) : items.filter((i) => i.project_slug === project);
-    if (!chosen.length) return;
-
-    section.querySelector('[data-heading]')!.textContent = config.heading;
-    const intro = section.querySelector<HTMLElement>('[data-intro]')!;
-    if (mode === 'home' && settings.home.intro) {
-      intro.textContent = settings.home.intro;
-      intro.hidden = false;
-    }
-    section.querySelector('[data-grid]')!.replaceChildren(...chosen.map((item) => card(item, mode, whatsapp, projectName)));
-    section.hidden = false;
-  }
-
-  for (const section of document.querySelectorAll<HTMLElement>('[data-listings]')) {
-    render(section).catch(() => {});
-  }
-</script>
+      <div class:list={['grid', { wrap: mode === 'home' }]}>
+        {shown.map((listing) => (
+          <ListingCard listing={listing} showProject={mode === 'home'} />
+        ))}
+      </div>
+      {mode === 'home' && (
+        <div class="wrap more">
+          <a class="btn btn-outline" href="/properties/">
+            See all properties →
+          </a>
+        </div>
+      )}
+    </section>
+  )
+}
 
 <style>
   .listings.home {
@@ -165,108 +68,8 @@ const { mode, project } = Astro.props;
     grid-template-columns: repeat(3, 1fr);
     gap: 16px;
   }
-  .listings :global(.lcard) {
-    position: relative;
-    display: flex;
-    flex-direction: column;
-    border: 1px solid var(--line);
-    border-radius: 8px;
-    overflow: hidden;
-    background: var(--bg);
-    transition: border-color 0.25s ease;
-  }
-  .listings :global(.lcard:hover) {
-    border-color: rgba(243, 220, 174, 0.35);
-  }
-  .listings :global(.lcard.sold .lbody) {
-    padding-bottom: 22px;
-  }
-  .listings :global(.lmain) {
-    display: flex;
-    flex-direction: column;
-    flex: 1;
-  }
-  .listings :global(.lph) {
-    aspect-ratio: 3 / 2;
-    overflow: hidden;
-    background: var(--card);
-  }
-  .listings :global(.lph img) {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-    transition: transform 0.8s ease;
-  }
-  .listings :global(.lmain:hover .lph img) {
-    transform: scale(1.04);
-  }
-  .listings :global(.lbody) {
-    position: relative;
-    display: flex;
-    flex-direction: column;
-    flex: 1;
-    padding: 24px 24px 0;
-  }
-  .listings :global(.lcard.sold) {
-    opacity: 0.55;
-  }
-  .listings :global(.ltag) {
-    font-size: 11px;
-    letter-spacing: 0.2em;
-    text-transform: uppercase;
-    color: var(--mut);
-  }
-  .listings :global(.lsold) {
-    position: absolute;
-    top: 20px;
-    right: 20px;
-    font-size: 11px;
-    font-weight: 700;
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
-    padding: 5px 9px;
-    border-radius: 3px;
-    border: 1px solid var(--line);
-    color: var(--mut);
-  }
-  .listings :global(.ltitle) {
-    font-size: 22px;
-    line-height: 1.15;
-    margin: 12px 0 8px;
-  }
-  .listings :global(.lfacts) {
-    color: #cfc8bb;
-    font-size: 14px;
-  }
-  .listings :global(.ldetails) {
-    color: var(--mut);
-    font-size: 14px;
-    line-height: 1.6;
-    margin-top: 10px;
-  }
-  .listings :global(.lprice) {
-    margin-top: auto;
-    padding-top: 18px;
-    font-family: var(--disp);
-    font-size: 20px;
-    background: var(--grad);
-    -webkit-background-clip: text;
-    background-clip: text;
-    color: transparent;
-  }
-  .listings :global(.lcta) {
-    margin: 12px 24px 22px;
-    align-self: flex-start;
-    color: var(--gold-2);
-    font-weight: 600;
-    font-size: 14px;
-  }
-  .listings :global(.lcta:hover) {
-    text-decoration: underline;
-  }
-
   .more {
-    margin-top: 32px;
+    margin-top: 36px;
   }
 
   @media (max-width: 1000px) {

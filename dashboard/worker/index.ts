@@ -1,5 +1,4 @@
 import type { ExecutionContext, ScheduledController } from "@cloudflare/workers-types";
-import { recordSync } from "./analytics/routes";
 import { recentRange, searchConsoleConfigured, syncSearchConsole } from "./analytics/sync";
 import { app } from "./app";
 import type { Env } from "./env";
@@ -11,7 +10,6 @@ const CRON_JOBS: Record<string, (env: Env) => Promise<void>> = {
     if (!searchConsoleConfigured(env)) return;
     const range = recentRange(5);
     await syncSearchConsole(env, range.start, range.end);
-    await recordSync(env.DB, range);
   },
   "*/5 * * * *": processSiteRebuild,
 };

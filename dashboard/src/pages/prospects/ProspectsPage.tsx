@@ -2,14 +2,14 @@ import React from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { Pencil, Plus, Trash2, Upload } from "lucide-react";
-import { crm, unwrap } from "@/lib/api";
-import { QueryView, showError, useAction, useQuery, useSearchState } from "@/lib/hooks";
+import { crm, fetchUsers, unwrap } from "@/lib/api";
+import { dataOr, QueryView, useAction, useQuery, useSearchState } from "@/lib/hooks";
 import { Button } from "@/ui/button";
 import { Badge, ConfirmDialog, EmptyState, PageHeader, Pagination } from "@/ui/layout";
 import { ImportDialog } from "./ImportDialog";
 import { AddProspectDialog, BulkEditDialog } from "./ProspectDialogs";
 import { ProspectFilters, searchBodyFrom, type ListParams } from "./ProspectFilters";
-import { allMatchingIds, loadExtraFields, loadTags, ProspectTable, useCrmUsers, useStringList } from "./shared";
+import { allMatchingIds, BULK_LIMIT, chunk, loadExtraFields, loadTags, ProspectTable } from "./shared";
 
 const PAGE_SIZES = [20, 50, 100];
 
@@ -17,11 +17,11 @@ export function ProspectsPage() {
   const [params, setParams] = useSearchState<keyof ListParams>();
   const navigate = useNavigate();
   const location = useLocation();
-  const users = useCrmUsers();
-  const extraFields = useStringList(loadExtraFields);
+  const users = dataOr(useQuery(fetchUsers), []);
+  const extraFields = dataOr(useQuery(loadExtraFields), []);
   const [tagsVersion, setTagsVersion] = React.useState(0);
   const tags = useQuery(loadTags, tagsVersion);
-  const tagSuggestions = tags.status === "ready" ? tags.data : [];
+  const tagSuggestions = dataOr(tags, []);
 
   const pageSize = PAGE_SIZES.includes(Number(params.pageSize)) ? Number(params.pageSize) : 20;
   const page = Math.max(1, Number(params.page) || 1);
@@ -30,6 +30,9 @@ export function ProspectsPage() {
   const query = useQuery(() => unwrap(crm.prospects.search.$post({ json: { ...body, limit: pageSize, offset: (page - 1) * pageSize } })), [params, version]);
 
   const [selected, setSelected] = React.useState<Set<string>>(new Set());
+  // A selection belongs to one set of filters; paging keeps it.
+  const filterKey = JSON.stringify(body);
+  React.useEffect(() => setSelected(new Set()), [filterKey]);
   // The dashboard's "+" menu links here with ?add=1 or ?import=1.
   const [dialog, setDialog] = React.useState<null | "add" | "import" | "bulk" | "delete">(() => {
     const search = new URLSearchParams(location.search);
@@ -48,7 +51,11 @@ export function ProspectsPage() {
   };
 
   const selectAll = useAction(() => allMatchingIds(body));
-  const remove = useAction(() => unwrap(crm.prospects["bulk-delete"].$post({ json: { prospect_ids: [...selected] } })));
+  const remove = useAction(async () => {
+    let deleted = 0;
+    for (const prospect_ids of chunk([...selected], BULK_LIMIT)) deleted += (await unwrap(crm.prospects["bulk-delete"].$post({ json: { prospect_ids } }))).deleted;
+    return { deleted };
+  });
 
   async function selectAllMatching() {
     const ids = await selectAll.run();
@@ -179,7 +186,7 @@ export function ProspectsPage() {
         confirmLabel="Remove"
         danger
         pending={remove.pending}
-        onConfirm={() => void removeSelected().catch(showError)}
+        onConfirm={() => void removeSelected()}
         onClose={() => setDialog(null)}
       />
     </>

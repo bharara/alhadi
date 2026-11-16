@@ -5,7 +5,7 @@ import type { AuthedEnv, WorkerEnv } from "../env";
 import { ApiError } from "../http";
 import { zJson, zQuery } from "../validation";
 import { requireUser } from "./middleware";
-import { hashPassword, sha256Hex, verifyPassword } from "./password";
+import { hashPassword, verifyPassword } from "./password";
 import { endSession, startSession } from "./session";
 
 const MAX_FAILURES = 10;
@@ -66,9 +66,7 @@ export const authRoutes = new Hono<WorkerEnv>()
 export const meRoutes = new Hono<AuthedEnv>().use(requireUser).get("/", (c) => c.json({ user: c.get("user") }));
 
 async function openInvite(db: Db, token: string): Promise<Invite> {
-  const invite = await first<Invite>(db, "SELECT id, email, role, expires_at, consumed_at FROM user_invites WHERE token_hash = ?", [
-    await sha256Hex(token),
-  ]);
+  const invite = await first<Invite>(db, "SELECT id, email, role, expires_at, consumed_at FROM user_invites WHERE token = ?", [token]);
   if (!invite || invite.consumed_at) throw new ApiError(400, "This invitation is no longer valid");
   if (invite.expires_at <= nowIso()) throw new ApiError(400, "This invitation has expired");
   return invite;

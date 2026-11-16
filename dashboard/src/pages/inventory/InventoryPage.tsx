@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import { crm, unwrap } from "@/lib/api";
 import { formatWhen } from "@/lib/format";
 import { QueryView, useAction, useQuery, useSearchState } from "@/lib/hooks";
-import { INVENTORY_STATUSES, INVENTORY_TYPE_LABELS, INVENTORY_TYPES } from "@/lib/labels";
+import { INVENTORY_STATUSES, INVENTORY_TYPE_LABELS, INVENTORY_TYPES } from "@worker/inventory/fields";
 import { Button } from "@/ui/button";
 import { Input, Select } from "@/ui/form";
 import { Badge, Card, Dialog, EmptyState, PageHeader, Pagination } from "@/ui/layout";
@@ -55,7 +55,7 @@ export function InventoryPage() {
   return (
     <>
       <PageHeader
-        title="Inventory"
+        title="Properties"
         lede="Every property on the market and who owns it. Curate what the website shows from each property's listing."
         actions={
           <Button onClick={() => setAdding(true)}>

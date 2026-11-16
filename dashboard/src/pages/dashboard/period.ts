@@ -6,13 +6,13 @@ export const PERIODS = [
   { value: "custom", label: "Custom range", days: 0 },
 ] as const;
 
-export type PeriodValue = (typeof PERIODS)[number]["value"];
+type PeriodValue = (typeof PERIODS)[number]["value"];
 
 const DAY_MS = 86_400_000;
 const MAX_DAYS = 365;
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
-export const isoDay = (date: Date) => date.toISOString().slice(0, 10);
+const isoDay = (date: Date) => date.toISOString().slice(0, 10);
 const dayStart = (iso: string) => new Date(`${iso}T00:00:00.000Z`);
 
 export type Range = { period: PeriodValue; start: string; end: string };

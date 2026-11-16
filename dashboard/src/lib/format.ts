@@ -3,7 +3,7 @@ const timeOnly = new Intl.DateTimeFormat("en-GB", { hour: "numeric", minute: "2-
 const dateOnly = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric" });
 const relative = new Intl.RelativeTimeFormat("en", { numeric: "auto" });
 
-/** "in 2 hours · 15:00" within a week, otherwise "5 Mar 2026, 15:00"; "—" when empty. */
+// "in 2 hours · 15:00" within a week, otherwise "5 Mar 2026, 15:00".
 export function formatWhen(value: string | null | undefined): string {
   if (!value) return "—";
   const date = new Date(value);
@@ -21,12 +21,10 @@ export const formatNumber = (value: number) => value.toLocaleString("en-US");
 
 export const formatPercent = (value: number | null | undefined, digits = 0) => (value == null ? "N/A" : `${(value * 100).toFixed(digits)}%`);
 
-/** snake_case → Title Case. */
 export const titleFromKey = (key: string) => key.replace(/[_-]+/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 
 export const truncate = (value: string | null | undefined, max = 100) => (!value ? "" : value.length > max ? `${value.slice(0, max - 1)}…` : value);
 
-/** Value for <input type="datetime-local"> from an ISO instant, in local time. */
 export function toLocalInput(value: string | null | undefined): string {
   if (!value) return "";
   const date = new Date(value);
@@ -34,5 +32,4 @@ export function toLocalInput(value: string | null | undefined): string {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
 
-/** ISO instant from an <input type="datetime-local"> value, or null when empty. */
 export const fromLocalInput = (value: string) => (value ? new Date(value).toISOString() : null);

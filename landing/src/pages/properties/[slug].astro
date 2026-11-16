@@ -9,7 +9,7 @@ import ListingCard from '../../components/ListingCard.astro';
 import Modal from '../../components/Modal.astro';
 import logo from '../../assets/logo.png';
 import { contact, enquiryOptions, projects, waLink } from '../../data/site';
-import { listingFacts, listingPath, listings, photoSrcset, type Listing } from '../../data/listings';
+import { listingFacts, listingPath, listings, listingMessage, photoSrcset, type Listing } from '../../data/listings';
 import { orgId, organization } from '../../data/schema';
 
 export const getStaticPaths = (() => listings.map((listing) => ({ params: { slug: listing.slug }, props: { listing } }))) satisfies GetStaticPaths;
@@ -33,9 +33,8 @@ const crumbs = [
 ];
 const related = listings.filter((x) => x.id !== l.id && x.status === 'available' && (l.project_slug ? x.project_slug === l.project_slug : true)).slice(0, 3);
 const paragraphs = (l.description ?? '').split(/\n\s*\n/).map((p) => p.trim()).filter(Boolean);
-const where = [l.project_name, l.block ? `Block ${l.block}` : null, l.number ? `No. ${l.number}` : null].filter(Boolean).join(', ');
-const waHref = waLink(`Assalam o Alaikum, I'm interested in the ${l.title}${where ? ` (${where})` : ''}. Is it still available? ${url}`);
-const visitHref = waLink(`Assalam o Alaikum, I'd like to visit the ${l.title}${where ? ` (${where})` : ''}. ${url}`);
+const waHref = waLink(listingMessage(l, 'ask', url));
+const visitHref = waLink(listingMessage(l, 'visit', url));
 const description = l.summary ?? `${l.title}: ${listingFacts(l)}${l.project_name ? ` in ${l.project_name}` : ''}, Faisalabad. ${l.price ?? 'Call for price'}.`;
 
 const facts: { label: string; value: string; href?: string }[] = [
@@ -83,7 +82,7 @@ const jsonLd = {
   image={cover?.full}
   imageSize={cover ? { width: cover.width, height: cover.height } : undefined}
   jsonLd={jsonLd}
-  whatsappText={`Assalam o Alaikum, I'm interested in the ${l.title}. ${url}`}
+  whatsappText={listingMessage(l, 'ask', url)}
 >
   <header class="wrap"><Nav /></header>
   <main>

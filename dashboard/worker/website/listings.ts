@@ -1,27 +1,26 @@
 import { Hono } from "hono";
 import { z } from "zod";
-import type { D1PreparedStatement } from "@cloudflare/workers-types";
 import { all, first, newId, nowIso, parseJson, stmt, type Db } from "../db";
 import type { AuthedEnv, Env, SessionUser } from "../env";
 import { ApiError } from "../http";
-import { INVENTORY_TYPE_LABELS, WEBSITE_PROJECTS, WEBSITE_PROJECT_SLUGS, type InventoryType } from "../inventory/fields";
-import { zJson, zParam } from "../validation";
+import { INVENTORY_TYPE_LABELS, type InventoryType } from "../inventory/fields";
+import { idParam, optionalText, zJson, zParam } from "../validation";
+import { MAX_PHOTOS, WEBSITE_PROJECTS, WEBSITE_PROJECT_SLUGS, type WebsiteProjectSlug } from "./fields";
+import { deletePhotos, photoUrls, putPhoto } from "./photos";
 import { requestSiteRebuild } from "./rebuild";
 
-export const MAX_PHOTOS = 30;
 const MAX_PHOTO_BYTES = 4 * 1024 * 1024;
 const SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
-
-const text = (max: number) => z.string().max(max).nullish().transform((v) => v?.trim() || null);
+const photoParam = idParam.extend({ photoId: z.string().min(1).max(64) });
 
 const listingUpdate = z
   .object({
     slug: z.string().trim().toLowerCase().max(120).regex(SLUG, "Use lowercase letters, numbers and single hyphens"),
     project_slug: z.enum(WEBSITE_PROJECT_SLUGS).nullable(),
     title: z.string().trim().min(1, "Required").max(160),
-    summary: text(300),
-    description: text(5000),
-    price_text: text(120),
+    summary: optionalText(300),
+    description: optionalText(5000),
+    price_text: optionalText(120),
     show_number: z.boolean(),
     features: z.array(z.string().trim().min(1).max(80)).max(20),
     published: z.boolean(),
@@ -30,11 +29,19 @@ const listingUpdate = z
   })
   .partial();
 
+const photoUpload = z.object({
+  full: z.instanceof(File),
+  thumb: z.instanceof(File),
+  width: z.coerce.number().int().min(1).max(4000),
+  height: z.coerce.number().int().min(1).max(4000),
+  alt: optionalText(200),
+});
+
 type ListingRow = {
   id: string;
   inventory_item_id: string;
   slug: string;
-  project_slug: (typeof WEBSITE_PROJECT_SLUGS)[number] | null;
+  project_slug: WebsiteProjectSlug | null;
   title: string;
   summary: string | null;
   description: string | null;
@@ -47,7 +54,6 @@ type ListingRow = {
   published_at: string | null;
   created_at: string;
   updated_at: string | null;
-  // From the inventory item.
   house_number: string;
   block: string | null;
   town: string;
@@ -66,8 +72,6 @@ const SELECT = `SELECT l.*, i.house_number, i.block, i.town, i.type, i.size, i.s
     (SELECT COUNT(*) FROM listing_photos p WHERE p.listing_id = l.id) AS photo_count,
     (SELECT p.storage_key FROM listing_photos p WHERE p.listing_id = l.id ORDER BY p.sort_order, p.created_at LIMIT 1) AS cover_key
   FROM website_listings l JOIN inventory_items i ON i.id = l.inventory_item_id`;
-
-export const photoUrls = (env: Env, key: string) => ({ full: `${env.MEDIA_URL}/${key}-1600.webp`, thumb: `${env.MEDIA_URL}/${key}-600.webp` });
 
 function toListing(env: Env, row: ListingRow, user: SessionUser) {
   const { cover_key, entered_by_user_id, house_number, block, town, type, size, status, asking_price, ...listing } = row;
@@ -100,7 +104,7 @@ async function photosOf(env: Env, listingId: string) {
   return rows.map(({ storage_key, ...photo }) => ({ ...photo, ...photoUrls(env, storage_key) }));
 }
 
-export const slugify = (value: string) =>
+const slugify = (value: string) =>
   value
     .toLowerCase()
     .normalize("NFKD")
@@ -108,32 +112,27 @@ export const slugify = (value: string) =>
     .replace(/^-+|-+$/g, "")
     .slice(0, 100) || "property";
 
-async function uniqueSlug(db: Db, base: string, exceptId?: string): Promise<string> {
+async function uniqueSlug(db: Db, base: string): Promise<string> {
   for (let n = 1; ; n++) {
     const candidate = n === 1 ? base : `${base}-${n}`;
-    const taken = await first<{ id: string }>(db, "SELECT id FROM website_listings WHERE slug = ?", [candidate]);
-    if (!taken || taken.id === exceptId) return candidate;
+    if (!(await first(db, "SELECT id FROM website_listings WHERE slug = ?", [candidate]))) return candidate;
   }
 }
 
-/** Matches a town like "Sitara Villas" to the project page it belongs on. */
-function guessProject(town: string): (typeof WEBSITE_PROJECT_SLUGS)[number] | null {
-  const lower = town.toLowerCase();
-  return WEBSITE_PROJECTS.find((p) => lower.includes(p.slug.split("-")[0]!))?.slug ?? null;
-}
+const guessProject = (town: string): WebsiteProjectSlug | null => WEBSITE_PROJECTS.find((p) => town.toLowerCase().includes(p.town))?.slug ?? null;
 
 export const listingRoutes = new Hono<AuthedEnv>()
   .get("/", async (c) => {
     const user = c.get("user");
-    const rows = await all<ListingRow>(c.env.DB, `${SELECT} ORDER BY l.published DESC, l.project_slug, l.sort_order, COALESCE(l.updated_at, l.created_at) DESC`);
+    const rows = await all<ListingRow>(c.env.DB, `${SELECT} ORDER BY l.published DESC, l.project_slug, l.sort_order, COALESCE(l.updated_at, l.created_at) DESC, l.id`);
     return c.json({ listings: rows.map((row) => toListing(c.env, row, user)) });
   })
   .post("/", zJson(z.object({ inventory_item_id: z.string().min(1).max(64) })), async (c) => {
     const db = c.env.DB;
     const user = c.get("user");
-    const item = await first<{ id: string; size: string; type: InventoryType; block: string | null; town: string; asking_price: string | null; entered_by_user_id: string }>(
+    const item = await first<{ id: string; size: string; type: InventoryType; block: string | null; town: string; entered_by_user_id: string }>(
       db,
-      "SELECT id, size, type, block, town, asking_price, entered_by_user_id FROM inventory_items WHERE id = ?",
+      "SELECT id, size, type, block, town, entered_by_user_id FROM inventory_items WHERE id = ?",
       [c.req.valid("json").inventory_item_id],
     );
     if (!item) throw new ApiError(404, "Inventory item not found");
@@ -153,11 +152,11 @@ export const listingRoutes = new Hono<AuthedEnv>()
     ]).run();
     return c.json(await loadListing(c.env, id, user), 201);
   })
-  .get("/:id", zParam(z.object({ id: z.string().min(1).max(64) })), async (c) => {
+  .get("/:id", zParam(idParam), async (c) => {
     const listing = await loadListing(c.env, c.req.valid("param").id, c.get("user"));
     return c.json({ ...listing, photos: await photosOf(c.env, listing.id) });
   })
-  .patch("/:id", zParam(z.object({ id: z.string().min(1).max(64) })), zJson(listingUpdate), async (c) => {
+  .patch("/:id", zParam(idParam), zJson(listingUpdate), async (c) => {
     const db = c.env.DB;
     const user = c.get("user");
     const current = await loadEditable(c.env, c.req.valid("param").id, user);
@@ -178,79 +177,67 @@ export const listingRoutes = new Hono<AuthedEnv>()
         nowIso(),
         current.id,
       ]).run();
-      if (current.published || body.published) c.executionCtx.waitUntil(requestSiteRebuild(c.env, c.req.url));
+      if (current.published || body.published) await requestSiteRebuild(c.env);
     }
     const listing = await loadListing(c.env, current.id, user);
     return c.json({ ...listing, photos: await photosOf(c.env, listing.id) });
   })
-  .delete("/:id", zParam(z.object({ id: z.string().min(1).max(64) })), async (c) => {
-    const current = await loadEditable(c.env, c.req.valid("param").id, c.get("user"));
-    const photos = await all<{ storage_key: string }>(c.env.DB, "SELECT storage_key FROM listing_photos WHERE listing_id = ?", [current.id]);
-    if (photos.length) await c.env.PHOTOS.delete(photos.flatMap((p) => [`${p.storage_key}-1600.webp`, `${p.storage_key}-600.webp`]));
-    await stmt(c.env.DB, "DELETE FROM website_listings WHERE id = ?", [current.id]).run();
-    if (current.published) c.executionCtx.waitUntil(requestSiteRebuild(c.env, c.req.url));
+  .delete("/:id", zParam(idParam), async (c) => {
+    const env = c.env;
+    const current = await loadEditable(env, c.req.valid("param").id, c.get("user"));
+    const keys = (await all<{ storage_key: string }>(env.DB, "SELECT storage_key FROM listing_photos WHERE listing_id = ?", [current.id])).map((p) => p.storage_key);
+    await stmt(env.DB, "DELETE FROM website_listings WHERE id = ?", [current.id]).run();
+    c.executionCtx.waitUntil(deletePhotos(env, keys));
+    if (current.published) await requestSiteRebuild(env);
     return c.json({ ok: true });
   })
-  // Multipart: `full` (≤1600px WebP), `thumb` (≤600px WebP), `width`, `height`, optional `alt`. The browser does the resizing.
-  .post("/:id/photos", zParam(z.object({ id: z.string().min(1).max(64) })), async (c) => {
+  // The browser resizes photos to WebP before uploading (see src/pages/website/photos.ts).
+  .post("/:id/photos", zParam(idParam), async (c) => {
     const env = c.env;
     const listing = await loadEditable(env, c.req.valid("param").id, c.get("user"));
     if (listing.photo_count >= MAX_PHOTOS) throw new ApiError(400, `A listing can have at most ${MAX_PHOTOS} photos`);
-    const form = await c.req.formData();
-    const full = form.get("full");
-    const thumb = form.get("thumb");
-    const width = Number(form.get("width"));
-    const height = Number(form.get("height"));
-    const alt = String(form.get("alt") ?? "").trim().slice(0, 200) || null;
-    const isImage = (f: unknown): f is File => f instanceof File && f.type === "image/webp" && f.size > 0 && f.size <= MAX_PHOTO_BYTES;
-    if (!isImage(full) || !isImage(thumb)) throw new ApiError(422, "Upload WebP images under 4 MB (the dashboard converts photos for you)");
-    if (!(width > 0 && height > 0 && width <= 4000 && height <= 4000)) throw new ApiError(422, "Missing photo dimensions");
+    const parsed = photoUpload.safeParse(Object.fromEntries((await c.req.formData()).entries()));
+    const isWebp = (f: File) => f.type === "image/webp" && f.size > 0 && f.size <= MAX_PHOTO_BYTES;
+    if (!parsed.success || !isWebp(parsed.data.full) || !isWebp(parsed.data.thumb)) throw new ApiError(422, "Upload WebP images under 4 MB (the dashboard converts photos for you)");
+    const { full, thumb, width, height, alt } = parsed.data;
     const id = newId();
     const key = `listings/${listing.id}/${id}`;
-    const meta = { httpMetadata: { contentType: "image/webp", cacheControl: "public, max-age=31536000, immutable" } };
-    await Promise.all([env.PHOTOS.put(`${key}-1600.webp`, await full.arrayBuffer(), meta), env.PHOTOS.put(`${key}-600.webp`, await thumb.arrayBuffer(), meta)]);
+    await putPhoto(env, key, await full.arrayBuffer(), await thumb.arrayBuffer());
     try {
-      const next = await first<{ n: number }>(env.DB, "SELECT COALESCE(MAX(sort_order), -1) + 1 AS n FROM listing_photos WHERE listing_id = ?", [listing.id]);
-      await stmt(env.DB, "INSERT INTO listing_photos (id, listing_id, storage_key, width, height, alt, sort_order, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)", [
-        id,
-        listing.id,
-        key,
-        Math.round(width),
-        Math.round(height),
-        alt,
-        next?.n ?? 0,
-        nowIso(),
-      ]).run();
+      await stmt(
+        env.DB,
+        `INSERT INTO listing_photos (id, listing_id, storage_key, width, height, alt, sort_order, created_at)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, (SELECT COALESCE(MAX(sort_order), -1) + 1 FROM listing_photos WHERE listing_id = ?2), ?7)`,
+        [id, listing.id, key, width, height, alt, nowIso()],
+      ).run();
     } catch (error) {
-      // Photos are never expired by lifecycle rules, so a failed insert must not leave files behind.
-      await env.PHOTOS.delete([`${key}-1600.webp`, `${key}-600.webp`]);
+      // Photos have no lifecycle expiry, so a failed insert must not leave files behind.
+      await deletePhotos(env, [key]);
       throw error;
     }
-    if (listing.published) c.executionCtx.waitUntil(requestSiteRebuild(env, c.req.url));
+    if (listing.published) await requestSiteRebuild(env);
     return c.json({ photos: await photosOf(env, listing.id) }, 201);
   })
-  .put("/:id/photos", zParam(z.object({ id: z.string().min(1).max(64) })), zJson(z.object({ order: z.array(z.string()).max(MAX_PHOTOS), alts: z.record(z.string(), z.string().max(200)).optional() })), async (c) => {
+  .put("/:id/photos", zParam(idParam), zJson(z.object({ order: z.array(z.string()).max(MAX_PHOTOS), alts: z.record(z.string(), z.string().max(200)).optional() })), async (c) => {
     const env = c.env;
     const listing = await loadEditable(env, c.req.valid("param").id, c.get("user"));
     const { order, alts = {} } = c.req.valid("json");
-    const statements: D1PreparedStatement[] = order.map((photoId, index) =>
-      env.DB.prepare("UPDATE listing_photos SET sort_order = ? WHERE id = ? AND listing_id = ?").bind(index, photoId, listing.id),
-    );
-    for (const [photoId, alt] of Object.entries(alts)) {
-      statements.push(env.DB.prepare("UPDATE listing_photos SET alt = ? WHERE id = ? AND listing_id = ?").bind(alt.trim() || null, photoId, listing.id));
-    }
+    const statements = [
+      ...order.map((photoId, index) => env.DB.prepare("UPDATE listing_photos SET sort_order = ? WHERE id = ? AND listing_id = ?").bind(index, photoId, listing.id)),
+      ...Object.entries(alts).map(([photoId, alt]) => env.DB.prepare("UPDATE listing_photos SET alt = ? WHERE id = ? AND listing_id = ?").bind(alt.trim() || null, photoId, listing.id)),
+    ];
     if (statements.length) await env.DB.batch(statements);
-    if (listing.published) c.executionCtx.waitUntil(requestSiteRebuild(env, c.req.url));
+    if (listing.published) await requestSiteRebuild(env);
     return c.json({ photos: await photosOf(env, listing.id) });
   })
-  .delete("/:id/photos/:photoId", zParam(z.object({ id: z.string().min(1).max(64), photoId: z.string().min(1).max(64) })), async (c) => {
+  .delete("/:id/photos/:photoId", zParam(photoParam), async (c) => {
     const env = c.env;
     const { id, photoId } = c.req.valid("param");
     const listing = await loadEditable(env, id, c.get("user"));
     const photo = await first<{ storage_key: string }>(env.DB, "SELECT storage_key FROM listing_photos WHERE id = ? AND listing_id = ?", [photoId, listing.id]);
     if (!photo) throw new ApiError(404, "Photo not found");
-    await env.PHOTOS.delete([`${photo.storage_key}-1600.webp`, `${photo.storage_key}-600.webp`]);
     await stmt(env.DB, "DELETE FROM listing_photos WHERE id = ?", [photoId]).run();
-    if (listing.published) c.executionCtx.waitUntil(requestSiteRebuild(env, c.req.url));
+    c.executionCtx.waitUntil(deletePhotos(env, [photo.storage_key]));
+    if (listing.published) await requestSiteRebuild(env);
     return c.json({ photos: await photosOf(env, listing.id) });
   });

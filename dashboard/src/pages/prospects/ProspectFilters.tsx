@@ -6,9 +6,10 @@ import { Button } from "@/ui/button";
 import { cn } from "@/ui/cn";
 import { Checkbox, Field, Input, Select } from "@/ui/form";
 import { Card } from "@/ui/layout";
-import { KIND_OPTIONS, STATUS_OPTIONS, userOptions, type ProspectSearchBody } from "./shared";
+import { STATUS_OPTIONS, TOUCH_KIND_OPTIONS } from "@/lib/labels";
+import { userOptions, type ProspectSearchBody } from "./shared";
 
-export type FieldFilter = { field: string; operator: "contains" | "not_contains" | "empty" | "not_empty"; value?: string };
+type FieldFilter = { field: string; operator: "contains" | "not_contains" | "empty" | "not_empty"; value?: string };
 
 /** The URL params a prospect list reads; dashboard drill-downs link here with the same names. */
 export type ListParams = Partial<
@@ -24,7 +25,7 @@ const OPERATORS = [
 
 const BASE_FIELDS = ["email", "name", "company", "title", "phone", "tags", "assigned_user", "status"];
 
-export function parseFieldFilters(raw: string | undefined): FieldFilter[] {
+function parseFieldFilters(raw: string | undefined): FieldFilter[] {
   if (!raw) return [];
   try {
     const parsed = JSON.parse(raw) as FieldFilter[];
@@ -34,7 +35,6 @@ export function parseFieldFilters(raw: string | undefined): FieldFilter[] {
   }
 }
 
-/** The search body for a list's URL params (without paging). */
 export function searchBodyFrom(params: ListParams, extra: Partial<ProspectSearchBody> = {}): ProspectSearchBody {
   const fieldFilters = parseFieldFilters(params.filters).map((f) => ({ field: f.field, operator: f.operator, value: f.value ?? null }));
   if (params.unassigned === "1") fieldFilters.push({ field: "assigned_user", operator: "empty", value: null });
@@ -43,7 +43,7 @@ export function searchBodyFrom(params: ListParams, extra: Partial<ProspectSearch
     status: (params.status || null) as ProspectSearchBody["status"],
     assigned_user_id: params.unassigned === "1" ? null : params.assigned || null,
     field_filters: fieldFilters,
-    untouched_only: params.untouched === "1",
+    touched: params.untouched === "1" ? false : null,
     last_touched_after: params.touchedAfter || null,
     last_touched_before: params.touchedBefore || null,
     touch_kind: (params.touchKind || null) as ProspectSearchBody["touch_kind"],
@@ -69,7 +69,6 @@ const draftFrom = (params: ListParams): Draft => ({
   filters: parseFieldFilters(params.filters),
 });
 
-/** Filter card for prospect lists; edits a draft and writes it to the URL on Apply. */
 export function ProspectFilters({
   params,
   onApply,
@@ -135,7 +134,7 @@ export function ProspectFilters({
             </Field>
           ) : (
             <Field label="Last touch kind">
-              <Select options={KIND_OPTIONS} placeholder="Any kind" value={draft.touchKind} onChange={(e) => set("touchKind", e.target.value)} />
+              <Select options={TOUCH_KIND_OPTIONS} placeholder="Any kind" value={draft.touchKind} onChange={(e) => set("touchKind", e.target.value)} />
             </Field>
           )}
           <Field label="Assigned user">

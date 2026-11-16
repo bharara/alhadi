@@ -38,8 +38,6 @@ export const placeholders = (n: number) => Array.from({ length: n }, () => "?").
 
 export const IN_CHUNK = 90;
 
-export const bool = (value: number | boolean | null | undefined) => Boolean(value);
-
 export function parseJson<T>(raw: string | null | undefined, fallback: T): T {
   if (!raw) return fallback;
   try {
@@ -51,3 +49,14 @@ export function parseJson<T>(raw: string | null | undefined, fallback: T): T {
 
 /** Escapes LIKE wildcards; use with ESCAPE '\'. */
 export const likeContains = (value: string) => `%${value.replace(/[\\%_]/g, (m) => `\\${m}`)}%`;
+
+const SETTING_UPSERT = "INSERT INTO site_settings (key, value, updated_at) VALUES (?, ?, ?) ON CONFLICT (key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at";
+
+export async function readSetting<T>(db: Db, key: string): Promise<T | null> {
+  const row = await first<{ value: string }>(db, "SELECT value FROM site_settings WHERE key = ?", [key]);
+  return row ? parseJson<T | null>(row.value, null) : null;
+}
+
+export async function writeSetting(db: Db, key: string, value: unknown): Promise<void> {
+  await run(db, SETTING_UPSERT, [key, JSON.stringify(value), nowIso()]);
+}

@@ -4,15 +4,17 @@ import { ArrowLeft, ArrowRight, ExternalLink, ImagePlus, Star, Trash2 } from "lu
 import { toast } from "sonner";
 import type { InferResponseType } from "hono/client";
 import { crm, errorMessage, unwrap } from "@/lib/api";
-import { QueryView, showError, useAction, useQuery } from "@/lib/hooks";
-import { WEBSITE_PROJECTS } from "@/lib/labels";
+import { QueryView, useAction, useQuery } from "@/lib/hooks";
+import { WEBSITE_PROJECTS } from "@worker/website/fields";
 import { Button } from "@/ui/button";
 import { Checkbox, Field, Input, Select, TagsInput, Textarea } from "@/ui/form";
 import { Badge, Card, ConfirmDialog, PageHeader } from "@/ui/layout";
 import { cn } from "@/ui/cn";
-import { MAX_PHOTOS, uploadPhoto, type UploadedPhoto } from "./photos";
+import { MAX_PHOTOS } from "@worker/website/fields";
+import { uploadPhoto } from "./photos";
 
 type ListingDetail = InferResponseType<(typeof crm.listings)[":id"]["$get"], 200>;
+type Photo = ListingDetail["photos"][number];
 type ProjectSlug = (typeof WEBSITE_PROJECTS)[number]["slug"];
 
 const FEATURE_SUGGESTIONS = ["Corner", "Park facing", "Main boulevard", "Possession ready", "50 ft road", "Near mosque", "Near commercial"];
@@ -224,12 +226,12 @@ function ListingEditor({ listing, site, onChange }: { listing: ListingDetail; si
 
 type UploadState = { name: string; status: "waiting" | "uploading" | "done" | "error"; error?: string };
 
-function PhotosCard({ listing, disabled, onChange }: { listing: ListingDetail; disabled: boolean; onChange: (photos: UploadedPhoto[]) => void }) {
+function PhotosCard({ listing, disabled, onChange }: { listing: ListingDetail; disabled: boolean; onChange: (photos: Photo[]) => void }) {
   const photos = listing.photos;
   const [uploads, setUploads] = React.useState<UploadState[]>([]);
   const [dragging, setDragging] = React.useState(false);
   const [alts, setAlts] = React.useState<Record<string, string>>({});
-  const [toDelete, setToDelete] = React.useState<UploadedPhoto | null>(null);
+  const [toDelete, setToDelete] = React.useState<Photo | null>(null);
   const inputRef = React.useRef<HTMLInputElement>(null);
   const uploading = uploads.some((u) => u.status === "uploading" || u.status === "waiting");
   const arrange = useAction((order: string[], altsChanged: Record<string, string>) =>
@@ -246,11 +248,11 @@ function PhotosCard({ listing, disabled, onChange }: { listing: ListingDetail; d
     const batch = files.slice(0, room);
     if (files.length > room) toast.warning(`Only the first ${room} photos were added (max ${MAX_PHOTOS}).`);
     setUploads(batch.map((f) => ({ name: f.name, status: "waiting" })));
-    let latest: UploadedPhoto[] | null = null;
+    let latest: Photo[] | null = null;
     for (const [index, file] of batch.entries()) {
       setUploads((u) => u.map((x, i) => (i === index ? { ...x, status: "uploading" } : x)));
       try {
-        latest = await uploadPhoto(listing.id, file, "");
+        latest = await uploadPhoto(listing.id, file);
         onChange(latest);
         setUploads((u) => u.map((x, i) => (i === index ? { ...x, status: "done" } : x)));
       } catch (error) {
@@ -415,7 +417,7 @@ function PhotosCard({ listing, disabled, onChange }: { listing: ListingDetail; d
         confirmLabel="Delete photo"
         danger
         pending={remove.pending}
-        onConfirm={() => void confirmDelete().catch(showError)}
+        onConfirm={() => void confirmDelete()}
         onClose={() => setToDelete(null)}
       />
     </Card>

@@ -1,13 +1,11 @@
-import { first, nowIso, run, type Db } from "../db";
+import { nowIso, readSetting, run } from "../db";
 import type { Env } from "../env";
-import { purgePublicListings } from "./public";
 
-// Listing pages are static, so publishing changes rebuild the landing site.
-// Edits within DEBOUNCE_MS of each other share one build; a cron starts it.
+// Listing pages are static; edits settle for DEBOUNCE_MS before the cron starts one landing build.
 const KEY = "site_rebuild";
 const DEBOUNCE_MS = 2 * 60 * 1000;
 
-export type RebuildState = {
+type RebuildState = {
   requested_at: string | null;
   triggered_at: string | null;
   deployment_url: string | null;
@@ -16,41 +14,53 @@ export type RebuildState = {
 
 const EMPTY: RebuildState = { requested_at: null, triggered_at: null, deployment_url: null, error: null };
 
-export async function readRebuildState(db: Db): Promise<RebuildState> {
-  const row = await first<{ value: string }>(db, "SELECT value FROM site_settings WHERE key = ?", [KEY]);
-  return row ? { ...EMPTY, ...(JSON.parse(row.value) as Partial<RebuildState>) } : EMPTY;
+export async function readRebuildState(db: Env["DB"]): Promise<RebuildState> {
+  return { ...EMPTY, ...(await readSetting<Partial<RebuildState>>(db, KEY)) };
 }
 
-async function writeRebuildState(db: Db, state: RebuildState): Promise<void> {
-  await run(db, "INSERT INTO site_settings (key, value, updated_at) VALUES (?, ?, ?) ON CONFLICT (key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at", [
-    KEY,
-    JSON.stringify(state),
-    nowIso(),
-  ]);
+export async function requestSiteRebuild(env: Env): Promise<void> {
+  const now = nowIso();
+  await run(
+    env.DB,
+    `INSERT INTO site_settings (key, value, updated_at) VALUES (?1, json_object('requested_at', ?2), ?2)
+     ON CONFLICT (key) DO UPDATE SET value = json_set(value, '$.requested_at', ?2), updated_at = ?2`,
+    [KEY, now],
+  );
 }
 
-/** Marks the site as needing a rebuild and refreshes the live listing cards right away. */
-export async function requestSiteRebuild(env: Env, requestUrl: string): Promise<void> {
-  const state = await readRebuildState(env.DB);
-  await Promise.all([writeRebuildState(env.DB, { ...state, requested_at: nowIso() }), purgePublicListings(requestUrl)]);
-}
-
-/** Cron: starts a build once edits have settled. */
 export async function processSiteRebuild(env: Env): Promise<void> {
   const state = await readRebuildState(env.DB);
-  if (!state.requested_at) return;
-  if (Date.now() - Date.parse(state.requested_at) < DEBOUNCE_MS) return;
-  await triggerSiteRebuild(env, state);
+  if (state.requested_at && Date.now() - Date.parse(state.requested_at) >= DEBOUNCE_MS) await triggerSiteRebuild(env);
 }
 
-/** Starts a landing build now and clears the pending request. */
-export async function triggerSiteRebuild(env: Env, state?: RebuildState): Promise<RebuildState> {
-  const current = state ?? (await readRebuildState(env.DB));
-  if (!env.PAGES_API_TOKEN) {
-    const next = { ...current, error: "PAGES_API_TOKEN is not set, so the site can't be rebuilt automatically." };
-    await writeRebuildState(env.DB, next);
-    return next;
+/** Starts a landing build now; a request made while it starts stays pending. */
+export async function triggerSiteRebuild(env: Env): Promise<RebuildState> {
+  const { requested_at: handled } = await readRebuildState(env.DB);
+  let url: string | null;
+  try {
+    url = await startPagesBuild(env);
+  } catch (error) {
+    await run(
+      env.DB,
+      `INSERT INTO site_settings (key, value, updated_at) VALUES (?1, json_object('error', ?2), ?3)
+       ON CONFLICT (key) DO UPDATE SET value = json_set(value, '$.error', ?2), updated_at = ?3`,
+      [KEY, (error as Error).message, nowIso()],
+    );
+    return readRebuildState(env.DB);
   }
+  await run(
+    env.DB,
+    `UPDATE site_settings SET value = json_set(value,
+       '$.requested_at', CASE WHEN json_extract(value, '$.requested_at') IS ?2 THEN NULL ELSE json_extract(value, '$.requested_at') END,
+       '$.triggered_at', ?3, '$.deployment_url', ?4, '$.error', NULL), updated_at = ?3
+     WHERE key = ?1`,
+    [KEY, handled, nowIso(), url],
+  );
+  return readRebuildState(env.DB);
+}
+
+async function startPagesBuild(env: Env): Promise<string | null> {
+  if (!env.PAGES_API_TOKEN) throw new Error("PAGES_API_TOKEN is not set, so the site can't be rebuilt automatically.");
   const form = new FormData();
   form.append("branch", env.LANDING_BRANCH);
   const response = await fetch(`https://api.cloudflare.com/client/v4/accounts/${env.CF_ACCOUNT_ID}/pages/projects/${env.LANDING_PROJECT}/deployments`, {
@@ -59,9 +69,6 @@ export async function triggerSiteRebuild(env: Env, state?: RebuildState): Promis
     body: form,
   });
   const data = (await response.json().catch(() => null)) as { success?: boolean; result?: { url?: string }; errors?: { message: string }[] } | null;
-  const next: RebuildState = data?.success
-    ? { requested_at: null, triggered_at: nowIso(), deployment_url: data.result?.url ?? null, error: null }
-    : { ...current, error: `Pages build failed to start: ${data?.errors?.[0]?.message ?? response.status}` };
-  await writeRebuildState(env.DB, next);
-  return next;
+  if (!data?.success) throw new Error(`Pages build failed to start: ${data?.errors?.[0]?.message ?? response.status}`);
+  return data.result?.url ?? null;
 }

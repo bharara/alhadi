@@ -1,9 +1,9 @@
 import { useLocation, useNavigate } from "react-router-dom";
-import { crm, unwrap } from "@/lib/api";
-import { QueryView, useQuery, useSearchState } from "@/lib/hooks";
+import { crm, fetchUsers, unwrap } from "@/lib/api";
+import { dataOr, QueryView, useQuery, useSearchState } from "@/lib/hooks";
 import { EmptyState, PageHeader, Pagination } from "@/ui/layout";
 import { ProspectFilters, searchBodyFrom, type ListParams } from "./ProspectFilters";
-import { ProspectTable, useCrmUsers } from "./shared";
+import { ProspectTable } from "./shared";
 
 const PAGE_SIZE = 25;
 
@@ -11,9 +11,9 @@ export function TouchesPage() {
   const [params, setParams] = useSearchState<keyof ListParams>();
   const navigate = useNavigate();
   const location = useLocation();
-  const users = useCrmUsers();
+  const users = dataOr(useQuery(fetchUsers), []);
   const page = Math.max(1, Number(params.page) || 1);
-  const body = searchBodyFrom(params, { touched_only: true, untouched_only: false, status: null, field_filters: [] });
+  const body = searchBodyFrom(params, { touched: true, status: null, field_filters: [] });
   const query = useQuery(() => unwrap(crm.prospects.search.$post({ json: { ...body, limit: PAGE_SIZE, offset: (page - 1) * PAGE_SIZE } })), params);
 
   return (

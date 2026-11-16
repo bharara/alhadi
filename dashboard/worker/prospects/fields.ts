@@ -7,7 +7,7 @@ export const TOUCH_KINDS = ["email", "call", "visit", "whatsapp"] as const;
 export type ProspectStatus = (typeof PROSPECT_STATUSES)[number];
 export type TouchKind = (typeof TOUCH_KINDS)[number];
 
-export const SECONDARY_PHONES_KEY = "secondary_phone_numbers";
+const SECONDARY_PHONES_KEY = "secondary_phone_numbers";
 
 const RESERVED_EXTRA_KEYS = new Set([
   "id", "created_at", "updated_at", "user_id", "email", "name", "company", "title", "phone", "tags", "tag", "notes",
@@ -47,11 +47,7 @@ export type ProspectColumns = Partial<{
   next_touch_at: string | null;
 }>;
 
-/**
- * Applies propCRM's rules: trimmed text, lowercased email, canonical deduped tags,
- * reserved extra keys dropped, and extra phone numbers moved into extra.secondary_phone_numbers.
- * `baseExtra` is the stored extra, used when the phone brings secondaries but extra wasn't sent.
- */
+// propCRM's rules; `baseExtra` (the stored extra) receives secondary phones when extra itself wasn't sent.
 export function normalizeProspectFields(input: ProspectFieldsInput, baseExtra: Record<string, unknown> | null = null): ProspectColumns {
   const out: ProspectColumns = {};
   if (input.email !== undefined) out.email = input.email?.trim().toLowerCase() || null;
@@ -81,7 +77,7 @@ export function normalizePhoneOrThrow(raw: string): { primary: string; secondary
   }
 }
 
-export function normalizeProspectPhone(raw: string): { primary: string; secondary: string | null } {
+function normalizeProspectPhone(raw: string): { primary: string; secondary: string | null } {
   const trimmed = raw.trim();
   if (!trimmed) throw new Error("Phone is required");
   if (/[a-zA-Z]/.test(trimmed)) throw new Error("Phone must not contain letters");
@@ -111,7 +107,7 @@ function mergeSecondaryPhones(extra: Record<string, unknown>, secondary: string)
   return { ...extra, [SECONDARY_PHONES_KEY]: merged.join(",") };
 }
 
-export function canonicalizeTag(raw: string): string {
+function canonicalizeTag(raw: string): string {
   const tag = raw.trim();
   return CANONICAL_TAGS[tag.toLowerCase()] ?? tag;
 }
@@ -130,7 +126,7 @@ export function normalizeTags(tags: string[]): string[] {
   return out;
 }
 
-export function sanitizeExtra(extra: Record<string, unknown>): Record<string, unknown> {
+function sanitizeExtra(extra: Record<string, unknown>): Record<string, unknown> {
   const out: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(extra)) {
     const normalized = key.trim().toLowerCase().replace(/-/g, "_");

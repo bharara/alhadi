@@ -2,8 +2,8 @@ import { Hono } from "hono";
 import { requireAdmin } from "../auth/middleware";
 import type { AuthedEnv } from "../env";
 import { ApiError } from "../http";
-import { WEBSITE_PROJECTS } from "../inventory/fields";
 import { zJson } from "../validation";
+import { WEBSITE_PROJECTS } from "./fields";
 import { readRebuildState, requestSiteRebuild, triggerSiteRebuild } from "./rebuild";
 import { readWebsiteSettings, websiteSettingsSchema, writeWebsiteSettings } from "./settings";
 
@@ -18,8 +18,7 @@ export const websiteRoutes = new Hono<AuthedEnv>()
   )
   .put("/settings", requireAdmin, zJson(websiteSettingsSchema), async (c) => {
     await writeWebsiteSettings(c.env.DB, c.req.valid("json"));
-    // Headings and "show sold" also shape the static listing pages.
-    c.executionCtx.waitUntil(requestSiteRebuild(c.env, c.req.url));
+    await requestSiteRebuild(c.env);
     return c.json({ settings: await readWebsiteSettings(c.env.DB) });
   })
   .post("/rebuild", requireAdmin, async (c) => {

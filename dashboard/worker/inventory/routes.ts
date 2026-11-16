@@ -3,24 +3,25 @@ import { z } from "zod";
 import { all, first, likeContains, newId, nowIso, stmt, type Db } from "../db";
 import type { AuthedEnv, SessionUser } from "../env";
 import { ApiError } from "../http";
-import { idParam, zJson, zParam } from "../validation";
+import { idParam, optionalText, requiredText, zJson, zParam } from "../validation";
+import { deletePhotos } from "../website/photos";
 import { requestSiteRebuild } from "../website/rebuild";
 import { CONTACT_KINDS, INVENTORY_STATUSES, INVENTORY_TYPES } from "./fields";
 
-const text = (max: number) => z.string().max(max).nullish().transform((v) => v?.trim() || null);
-const required = (max: number) => z.string().trim().min(1, "Required").max(max);
+// Inventory fields a published listing shows on the site.
+const PUBLIC_FIELDS = ["house_number", "block", "type", "status", "size"] as const;
 
 const itemShape = {
-  house_number: required(255),
-  block: text(255),
-  town: required(255),
+  house_number: requiredText(255),
+  block: optionalText(255),
+  town: requiredText(255),
   type: z.enum(INVENTORY_TYPES),
   status: z.enum(INVENTORY_STATUSES),
-  size: required(255),
-  details: text(20000),
-  asking_price: text(255),
-  contact_phone_number: required(64),
-  contact_name: required(255),
+  size: requiredText(255),
+  details: optionalText(20000),
+  asking_price: optionalText(255),
+  contact_phone_number: requiredText(64),
+  contact_name: requiredText(255),
   contact_kind: z.enum(CONTACT_KINDS),
 };
 
@@ -151,21 +152,20 @@ export const inventoryRoutes = new Hono<AuthedEnv>()
         nowIso(),
         current.id,
       ]).run();
-      // Size, type, block or sold status show on the published listing.
-      if (current.listing?.published) c.executionCtx.waitUntil(requestSiteRebuild(c.env, c.req.url));
+      if (current.listing?.published && entries.some(([k]) => (PUBLIC_FIELDS as readonly string[]).includes(k))) await requestSiteRebuild(c.env);
     }
     return c.json(await loadItem(db, current.id, user));
   })
   .delete("/:id", zParam(idParam), async (c) => {
-    const current = await loadItem(c.env.DB, c.req.valid("param").id, c.get("user"));
+    const env = c.env;
+    const current = await loadItem(env.DB, c.req.valid("param").id, c.get("user"));
     if (!current.can_edit) throw new ApiError(403, "Only admins or the creator can delete this inventory item");
-    if (current.listing) await c.env.PHOTOS.delete(await photoKeysFor(c.env.DB, current.listing.id));
-    await stmt(c.env.DB, "DELETE FROM inventory_items WHERE id = ?", [current.id]).run();
-    if (current.listing?.published) c.executionCtx.waitUntil(requestSiteRebuild(c.env, c.req.url));
+    const photoKeys = current.listing
+      ? (await all<{ storage_key: string }>(env.DB, "SELECT storage_key FROM listing_photos WHERE listing_id = ?", [current.listing.id])).map((p) => p.storage_key)
+      : [];
+    await stmt(env.DB, "DELETE FROM inventory_items WHERE id = ?", [current.id]).run();
+    c.executionCtx.waitUntil(deletePhotos(env, photoKeys));
+    if (current.listing?.published) await requestSiteRebuild(env);
     return c.json({ ok: true });
   });
 
-async function photoKeysFor(db: Db, listingId: string): Promise<string[]> {
-  const rows = await all<{ storage_key: string }>(db, "SELECT storage_key FROM listing_photos WHERE listing_id = ?", [listingId]);
-  return rows.flatMap((r) => [`${r.storage_key}-1600.webp`, `${r.storage_key}-600.webp`]);
-}

@@ -5,14 +5,16 @@ import { toast } from "sonner";
 import { crm, fetchUsers, unwrap, type Prospect, type Touch } from "@/lib/api";
 import { formatWhen, fromLocalInput, toLocalInput } from "@/lib/format";
 import { QueryView, Spinner, useAction, useQuery, useSearchState } from "@/lib/hooks";
-import { callStatusLabel, PROSPECT_STATUSES, STATUS_LABELS, STATUS_TONES, TOUCH_KIND_LABELS, type ProspectStatus, type TouchKind } from "@/lib/labels";
+import type { ProspectStatus, TouchKind } from "@worker/prospects/fields";
+import { callStatusLabel, STATUS_LABELS, STATUS_OPTIONS, STATUS_TONES, TOUCH_KIND_LABELS } from "@/lib/labels";
+import { TouchDialog } from "@/touches/TouchDialog";
 import { useSession } from "@/session";
 import { Button } from "@/ui/button";
 import { cn } from "@/ui/cn";
 import { Field, Input, Select, TagsInput, Textarea } from "@/ui/form";
 import { Badge, Card, EmptyState, PageHeader } from "@/ui/layout";
 import { CALL_BACK, CALL_BUTTONS, WHATSAPP_BUTTONS, type TaskButton, type TaskPayload } from "./actions";
-import { ActionDialog, EditTouchDialog, type TouchChanges } from "./dialogs";
+import { ActionDialog } from "./dialogs";
 
 const LEAVE_MESSAGE = "You have unsaved changes. Leave without saving?";
 
@@ -286,7 +288,7 @@ function NotesPanel({
         </div>
       </Field>
       <Field label="Status">
-        <Select value={form.status} onChange={(e) => set("status", e.target.value as ProspectStatus)} options={PROSPECT_STATUSES.map((s) => ({ value: s, label: STATUS_LABELS[s] }))} />
+        <Select value={form.status} onChange={(e) => set("status", e.target.value as ProspectStatus)} options={STATUS_OPTIONS} />
       </Field>
       <Field label="Tags">
         <TagsInput value={form.tags} onChange={(tags) => set("tags", tags)} suggestions={tagSuggestions} />
@@ -301,12 +303,6 @@ function NotesPanel({
 
 function PreviousTouches({ prospectId, touches, onEdited }: { prospectId: string; touches: ReturnType<typeof useQuery<{ touches: Touch[] }>>; onEdited: () => void }) {
   const [editing, setEditing] = React.useState<Touch | null>(null);
-  const save = useAction(async (changes: TouchChanges) => {
-    await unwrap(crm.prospects[":id"].touches[":touchId"].$patch({ param: { id: prospectId, touchId: editing!.id }, json: changes }));
-    toast.success("Touch updated");
-    setEditing(null);
-    onEdited();
-  });
 
   return (
     <Card title="Previous touches" bodyClassName="flex flex-col gap-3">
@@ -338,7 +334,15 @@ function PreviousTouches({ prospectId, touches, onEdited }: { prospectId: string
           )
         }
       </QueryView>
-      <EditTouchDialog touch={editing} pending={save.pending} onClose={() => setEditing(null)} onSubmit={(changes) => void save.run(changes)} />
+      <TouchDialog
+        prospectId={prospectId}
+        touch={editing}
+        onClose={() => setEditing(null)}
+        onSaved={() => {
+          setEditing(null);
+          onEdited();
+        }}
+      />
     </Card>
   );
 }
@@ -350,7 +354,7 @@ function ActionsPanel({ prospect, guard, onActed }: { prospect: Prospect; guard:
 
   const act = useAction(async (payload: TaskPayload) => {
     await unwrap(crm.prospects[":id"]["task-action"].$post({ param: { id: prospect.id }, json: payload }));
-    toast.success(`${TOUCH_KIND_LABELS[payload.kind]} logged`);
+    toast.success(`${TOUCH_KIND_LABELS[payload.kind ?? "call"]} logged`);
     setModal(null);
     onActed();
   });

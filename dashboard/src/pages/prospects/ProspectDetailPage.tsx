@@ -1,15 +1,17 @@
 import React from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { toast } from "sonner";
+import type { ProspectStatus, TouchKind } from "@worker/prospects/fields";
 import { Pencil, Plus, Trash2, X } from "lucide-react";
-import { crm, unwrap, type CrmUser, type Prospect, type Touch } from "@/lib/api";
+import { crm, fetchUsers, unwrap, type Prospect, type Touch } from "@/lib/api";
 import { formatWhen, fromLocalInput, toLocalInput } from "@/lib/format";
-import { QueryView, useAction, useQuery } from "@/lib/hooks";
-import { CALL_STATUSES, callStatusLabel, TOUCH_KIND_LABELS, type ProspectStatus, type TouchKind } from "@/lib/labels";
+import { dataOr, QueryView, useAction, useQuery } from "@/lib/hooks";
+import { callStatusLabel, STATUS_OPTIONS, TOUCH_KIND_LABELS } from "@/lib/labels";
+import { TouchDialog } from "@/touches/TouchDialog";
 import { Button } from "@/ui/button";
 import { Field, Input, Select, TagsInput, Textarea } from "@/ui/form";
-import { Card, ConfirmDialog, Dialog, EmptyState, PageHeader } from "@/ui/layout";
-import { KIND_OPTIONS, loadTags, STATUS_OPTIONS, StatusBadge, useCrmUsers, userOptions, useStringList } from "./shared";
+import { Card, ConfirmDialog, EmptyState, PageHeader } from "@/ui/layout";
+import { loadTags, StatusBadge, userOptions } from "./shared";
 
 type ExtraRow = { key: string; value: string };
 type Form = {
@@ -61,8 +63,8 @@ function ProspectDetail({ prospect, onSaved }: { prospect: Prospect; onSaved: (p
   const navigate = useNavigate();
   const location = useLocation();
   const backTo = (location.state as { from?: string } | null)?.from ?? "/prospects";
-  const users = useCrmUsers();
-  const tagSuggestions = useStringList(loadTags);
+  const users = dataOr(useQuery(fetchUsers), []);
+  const tagSuggestions = dataOr(useQuery(loadTags), []);
   const [form, setForm] = React.useState<Form>(() => formOf(prospect));
   const [confirmRemove, setConfirmRemove] = React.useState(false);
   const set = <K extends keyof Form>(key: K, value: Form[K]) => setForm((f) => ({ ...f, [key]: value }));
@@ -195,7 +197,7 @@ function ProspectDetail({ prospect, onSaved }: { prospect: Prospect; onSaved: (p
             </div>
           </form>
         </Card>
-        <TouchesPanel prospectId={prospect.id} users={users} onChanged={() => void unwrap(crm.prospects[":id"].$get({ param: { id: prospect.id } })).then(onSaved, () => undefined)} />
+        <TouchesPanel prospectId={prospect.id} onChanged={() => void unwrap(crm.prospects[":id"].$get({ param: { id: prospect.id } })).then(onSaved, () => undefined)} />
       </div>
       <ConfirmDialog
         open={confirmRemove}
@@ -211,7 +213,7 @@ function ProspectDetail({ prospect, onSaved }: { prospect: Prospect; onSaved: (p
   );
 }
 
-function TouchesPanel({ prospectId, onChanged }: { prospectId: string; users: CrmUser[]; onChanged: () => void }) {
+function TouchesPanel({ prospectId, onChanged }: { prospectId: string; onChanged: () => void }) {
   const [version, setVersion] = React.useState(0);
   const query = useQuery(() => unwrap(crm.prospects[":id"].touches.$get({ param: { id: prospectId } })), [prospectId, version]);
   const [editing, setEditing] = React.useState<Touch | "new" | null>(null);
@@ -262,69 +264,5 @@ function TouchesPanel({ prospectId, onChanged }: { prospectId: string; users: Cr
         }}
       />
     </Card>
-  );
-}
-
-const CALL_STATUS_OPTIONS = CALL_STATUSES.map((value) => ({ value, label: callStatusLabel(value) }));
-
-function TouchDialog({ prospectId, touch, onClose, onSaved }: { prospectId: string; touch: Touch | "new" | null; onClose: () => void; onSaved: () => void }) {
-  const [kind, setKind] = React.useState<TouchKind>("call");
-  const [occurredAt, setOccurredAt] = React.useState("");
-  const [callStatus, setCallStatus] = React.useState("");
-  const [summary, setSummary] = React.useState("");
-  React.useEffect(() => {
-    if (!touch) return;
-    const existing = touch === "new" ? null : touch;
-    setKind((existing?.kind as TouchKind) ?? "call");
-    setOccurredAt(toLocalInput(existing?.occurred_at ?? new Date().toISOString()));
-    setCallStatus(existing?.call_status ?? "");
-    setSummary(existing?.summary ?? "");
-  }, [touch]);
-
-  const save = useAction(() => {
-    const json = { kind, occurred_at: fromLocalInput(occurredAt) ?? new Date().toISOString(), summary: summary || null, call_status: callStatus || null };
-    return touch && touch !== "new"
-      ? unwrap(crm.prospects[":id"].touches[":touchId"].$patch({ param: { id: prospectId, touchId: touch.id }, json }))
-      : unwrap(crm.prospects[":id"].touches.$post({ param: { id: prospectId }, json }));
-  });
-
-  async function submit(event: React.FormEvent) {
-    event.preventDefault();
-    if (!(await save.run())) return;
-    toast.success(touch === "new" ? "Touch logged" : "Touch updated");
-    onSaved();
-  }
-
-  return (
-    <Dialog
-      open={touch !== null}
-      onClose={onClose}
-      title={touch === "new" ? "Add touch" : "Edit touch"}
-      footer={
-        <>
-          <Button variant="outline" onClick={onClose}>
-            Cancel
-          </Button>
-          <Button type="submit" form="touch-form" pending={save.pending}>
-            {touch === "new" ? "Add touch" : "Save touch"}
-          </Button>
-        </>
-      }
-    >
-      <form id="touch-form" onSubmit={submit} className="flex flex-col gap-4">
-        <Field label="Kind" required>
-          <Select options={KIND_OPTIONS} value={kind} onChange={(e) => setKind(e.target.value as TouchKind)} />
-        </Field>
-        <Field label="Occurred at" required>
-          <Input type="datetime-local" value={occurredAt} onChange={(e) => setOccurredAt(e.target.value)} required />
-        </Field>
-        <Field label="Outcome">
-          <Select options={CALL_STATUS_OPTIONS} placeholder="None" value={callStatus} onChange={(e) => setCallStatus(e.target.value)} />
-        </Field>
-        <Field label="Summary">
-          <Textarea rows={4} value={summary} onChange={(e) => setSummary(e.target.value)} />
-        </Field>
-      </form>
-    </Dialog>
   );
 }

@@ -1,6 +1,6 @@
 import { CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 
-export type DailyPoint = { date: string; clicks: number; impressions: number };
+type DailyPoint = { date: string; clicks: number; impressions: number };
 
 const CLICKS = "hsl(41 87% 45%)";
 const IMPRESSIONS = "hsl(216 60% 35%)";

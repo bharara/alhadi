@@ -11,7 +11,7 @@ const VARIANTS = {
 
 const SIZES = { sm: "h-8 px-3 text-xs gap-1.5", md: "h-10 px-4 text-sm gap-2", icon: "h-9 w-9 justify-center" } as const;
 
-export type ButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> & {
+type ButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> & {
   variant?: keyof typeof VARIANTS;
   size?: keyof typeof SIZES;
   pending?: boolean;

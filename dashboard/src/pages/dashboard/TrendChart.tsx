@@ -1,7 +1,7 @@
 import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import type { TrendRow } from "./types";
 
-export const SERIES = [
+const SERIES = [
   { key: "calls", label: "Calls", color: "#1677ff" },
   { key: "whatsapp", label: "WhatsApp", color: "#52c41a" },
   { key: "visits", label: "Visits", color: "#faad14" },

@@ -32,8 +32,7 @@ export function AnalyticsPage() {
   const [params, setParams] = useSearchState<"days">();
   const days = (PERIODS.some((p) => p.value === params.days) ? params.days : "28") as Days;
   const query = useQuery(
-    // The Worker answers with one of two JSON shapes (no data yet vs data); unwrap infers only one.
-    () => unwrap<Search>(crm.analytics.search.$get({ query: { days } }) as never),
+    () => unwrap(crm.analytics.search.$get({ query: { days } })),
     days,
   );
 

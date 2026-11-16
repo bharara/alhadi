@@ -30,7 +30,18 @@ export function ProspectsPage() {
   const query = useQuery(() => unwrap(crm.prospects.search.$post({ json: { ...body, limit: pageSize, offset: (page - 1) * pageSize } })), [params, version]);
 
   const [selected, setSelected] = React.useState<Set<string>>(new Set());
-  const [dialog, setDialog] = React.useState<null | "add" | "import" | "bulk" | "delete">(null);
+  // The dashboard's "+" menu links here with ?add=1 or ?import=1.
+  const [dialog, setDialog] = React.useState<null | "add" | "import" | "bulk" | "delete">(() => {
+    const search = new URLSearchParams(location.search);
+    return search.has("add") ? "add" : search.has("import") ? "import" : null;
+  });
+  React.useEffect(() => {
+    const search = new URLSearchParams(location.search);
+    if (!search.has("add") && !search.has("import")) return;
+    search.delete("add");
+    search.delete("import");
+    navigate({ search: search.toString() }, { replace: true });
+  }, [location.search, navigate]);
   const refresh = () => {
     setVersion((v) => v + 1);
     setTagsVersion((v) => v + 1);

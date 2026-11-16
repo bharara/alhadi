@@ -23,11 +23,18 @@
       "migrations_dir": "migrations"
     }
   ],
-  "triggers": { "crons": ["30 2 * * *"] },
+  // Daily Search Console sync; every 5 minutes, start a landing build if listings changed.
+  "triggers": { "crons": ["30 2 * * *", "*/5 * * * *"] },
+  "r2_buckets": [{ "binding": "PHOTOS", "bucket_name": "bbd-media" }],
   "vars": {
     "APP_URL": "https://crm.bestbuilderdeveloper.com",
     "PUBLIC_SITE_URL": "https://bestbuilderdeveloper.com",
-    "GSC_PROPERTY": "sc-domain:bestbuilderdeveloper.com"
+    "MEDIA_URL": "https://media.bestbuilderdeveloper.com",
+    "GSC_PROPERTY": "sc-domain:bestbuilderdeveloper.com",
+    "CF_ACCOUNT_ID": "bc7bbdb0e3475207e1f89d1d96fcef69",
+    "LANDING_PROJECT": "best-builders-developers",
+    // Switch to "main" once feat/crm is merged.
+    "LANDING_BRANCH": "feat/crm"
   },
   "observability": { "enabled": true }
 }

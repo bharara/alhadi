@@ -8,6 +8,7 @@ import { inventoryRoutes } from "./inventory/routes";
 import { prospectRoutes } from "./prospects/routes";
 import { reportRoutes } from "./report/routes";
 import { crmUserRoutes, userManagementRoutes } from "./users/routes";
+import { listingRoutes } from "./website/listings";
 import { publicRoutes } from "./website/public";
 import { websiteRoutes } from "./website/routes";
 
@@ -18,6 +19,7 @@ const crm = new Hono<AuthedEnv>()
   .route("/dashboard", reportRoutes)
   .route("/inventory", inventoryRoutes)
   .route("/website", websiteRoutes)
+  .route("/listings", listingRoutes)
   .route("/analytics", analyticsRoutes)
   .route("/user-management", userManagementRoutes);
 

@@ -9,15 +9,13 @@ It runs as one Cloudflare Worker with D1, serving a React SPA. Everything lives 
 | `src/` | React 19 + Vite + Tailwind SPA. It talks to the Worker through the typed Hono client (`src/lib/api.ts`) |
 | `migrations/` | D1 schema (plain SQL, applied with `wrangler d1 migrations apply`) |
 
-## Internal inventory and the website directory
+## Properties and the website
 
-**Inventory** (`inventory_items`) holds every property. It is internal: owner contacts, asking price, notes. Only signed-in staff see it.
+Every property is one row in `inventory_items`, opened in the dashboard as one page with two tabs.
+- **Details** is internal: owner contact, asking price, notes, who entered it. Only signed-in staff see it.
+- **Website** is what the public sees: project page, web address, title, card text, description, price text (shown as written; empty shows "Call for price"), features, photos (`property_photos`), published, featured on home, and display order.
 
-**Website listings** (`website_listings`, `listing_photos`) are the curated public directory. A listing points at one inventory item and holds only what the public sees:
-- web address (slug), title, card text, description, price text (shown as written; empty shows "Call for price")
-- features, photos, project page, featured on home, published, display order
-
-When the inventory item is marked sold, its listing hides from the site, or shows as sold if the "show sold" setting is on.
+The public feed (`worker/website/public.ts`) selects only the website columns, so owner details never leave the Worker. A sold property drops off the site, or stays marked Sold if the "show sold" setting is on.
 
 **Photos:**
 - They are resized in the browser to WebP: 1600px for the full image, 600px for the thumbnail.
@@ -28,7 +26,20 @@ When the inventory item is marked sold, its listing hides from the site, or show
 - the home "Available now" section and each project page's listings
 - `/properties/` and `/properties/<slug>/`
 
-A change to a published listing (or to a field it shows, or the website settings) marks the site for rebuild. A 5-minute cron starts one Pages build once edits have settled for 2 minutes, so changes appear within a few minutes. Admins can also click "Rebuild site now" under Website listings. The build uses `PAGES_API_TOKEN` and builds `LANDING_BRANCH`.
+A change to a published property (or to a field it shows, or the website settings) marks the site for rebuild. A 5-minute cron starts one Pages build once edits have settled for 2 minutes, so changes appear within a few minutes. Admins can also click "Rebuild site now" on the Website page. The build uses `PAGES_API_TOKEN` and builds `LANDING_BRANCH`.
+
+## Site analytics
+
+The landing site sends an event for each pageview and each enquiry (WhatsApp tap, phone tap, lead form) to `bestbuilderdeveloper.com/a/e`. That path is routed to this Worker so it stays first-party.
+
+**Each event records:**
+- Pakistan day, path and property
+- channel (direct, organic search, paid, social, WhatsApp, AI assistants, email, other websites), source and UTM campaign, all taken from how the visit started
+- country, device and browser
+
+**Privacy:** no cookies and no IP addresses. Visitors are a hash that rotates daily, and a visit is a `sessionStorage` id. Bots and requests from other sites are dropped.
+
+**Storage:** events live in `web_events`, and anything older than 400 days is deleted nightly. Dashboard → Site analytics shows totals against the previous period, a daily chart, sources, top pages, properties, countries and devices.
 
 ## Local development
 

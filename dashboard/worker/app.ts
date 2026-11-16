@@ -7,8 +7,9 @@ import { errorHandler } from "./http";
 import { inventoryRoutes } from "./inventory/routes";
 import { prospectRoutes } from "./prospects/routes";
 import { reportRoutes } from "./report/routes";
+import { collectRoutes } from "./site-analytics/collect";
+import { siteAnalyticsRoutes } from "./site-analytics/routes";
 import { crmUserRoutes, userManagementRoutes } from "./users/routes";
-import { listingRoutes } from "./website/listings";
 import { publicRoutes } from "./website/public";
 import { websiteRoutes } from "./website/routes";
 
@@ -19,14 +20,16 @@ const crm = new Hono<AuthedEnv>()
   .route("/dashboard", reportRoutes)
   .route("/inventory", inventoryRoutes)
   .route("/website", websiteRoutes)
-  .route("/listings", listingRoutes)
   .route("/analytics", analyticsRoutes)
+  .route("/site-analytics", siteAnalyticsRoutes)
   .route("/user-management", userManagementRoutes);
 
 export const app = new Hono<WorkerEnv>()
   .onError(errorHandler())
   .get("/api/health", (c) => c.json({ status: "ok" }))
   .route("/api/public", publicRoutes)
+  // Site analytics events, sent same-origin from bestbuilderdeveloper.com/a/e.
+  .route("/a", collectRoutes)
   .route("/api/auth", authRoutes)
   .route("/api/auth/password-link", passwordLinkRoutes)
   .route("/api/me", meRoutes)

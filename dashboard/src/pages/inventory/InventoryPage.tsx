@@ -6,6 +6,7 @@ import { crm, unwrap } from "@/lib/api";
 import { formatWhen } from "@/lib/format";
 import { QueryView, useAction, useQuery, useSearchState } from "@/lib/hooks";
 import { INVENTORY_STATUSES, INVENTORY_TYPE_LABELS, INVENTORY_TYPES } from "@worker/inventory/fields";
+import { WEBSITE_PROJECTS } from "@worker/inventory/fields";
 import { Button } from "@/ui/button";
 import { Input, Select } from "@/ui/form";
 import { Badge, Card, Dialog, EmptyState, PageHeader, Pagination } from "@/ui/layout";
@@ -14,9 +15,10 @@ import { cn } from "@/ui/cn";
 import { EMPTY_INVENTORY_FORM, InventoryForm, payloadFromForm, type InventoryFormState } from "./InventoryForm";
 
 const PAGE_SIZE = 25;
-type FilterKey = "q" | "town" | "block" | "type" | "status" | "web" | "page";
+type FilterKey = "q" | "town" | "block" | "type" | "status" | "project" | "web" | "page";
 type InventoryType = (typeof INVENTORY_TYPES)[number];
 type InventoryStatus = (typeof INVENTORY_STATUSES)[number];
+type ProjectSlug = (typeof WEBSITE_PROJECTS)[number]["slug"];
 
 export function InventoryPage() {
   const navigate = useNavigate();
@@ -37,7 +39,8 @@ export function InventoryPage() {
             block: filters.block || null,
             type: (filters.type as InventoryType) || null,
             status: (filters.status as InventoryStatus) || null,
-            on_website: filters.web === "yes" ? true : filters.web === "no" ? false : null,
+            project_slug: (filters.project as ProjectSlug) || null,
+            published: filters.web === "yes" ? true : filters.web === "no" ? false : null,
             limit: PAGE_SIZE,
             offset: (page - 1) * PAGE_SIZE,
           },
@@ -56,23 +59,24 @@ export function InventoryPage() {
     <>
       <PageHeader
         title="Properties"
-        lede="Every property on the market and who owns it. Curate what the website shows from each property's listing."
+        lede="Every property on the market and who owns it. Open a property's Website tab to put it on the site."
         actions={
           <Button onClick={() => setAdding(true)}>
-            <Plus className="h-4 w-4" /> Add item
+            <Plus className="h-4 w-4" /> Add property
           </Button>
         }
       />
 
       <Card className="mb-4">
-        <form onSubmit={apply} className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7">
+        <form onSubmit={apply} className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <Input className="sm:col-span-2" placeholder="House, contact, details" value={draft.q ?? ""} onChange={(e) => setDraft({ ...draft, q: e.target.value })} aria-label="Search" />
           <Select aria-label="Town" placeholder="All towns" value={draft.town ?? ""} options={townList.map((t) => ({ value: t, label: t }))} onChange={(e) => setDraft({ ...draft, town: e.target.value })} />
           <Input aria-label="Block" placeholder="Block" value={draft.block ?? ""} onChange={(e) => setDraft({ ...draft, block: e.target.value })} />
           <Select aria-label="Type" placeholder="All types" value={draft.type ?? ""} options={INVENTORY_TYPES.map((t) => ({ value: t, label: INVENTORY_TYPE_LABELS[t] }))} onChange={(e) => setDraft({ ...draft, type: e.target.value })} />
           <Select aria-label="Status" placeholder="Any status" value={draft.status ?? ""} options={[{ value: "available", label: "Available" }, { value: "sold", label: "Sold" }]} onChange={(e) => setDraft({ ...draft, status: e.target.value })} />
-          <Select aria-label="On website" placeholder="Website: any" value={draft.web ?? ""} options={[{ value: "yes", label: "On website" }, { value: "no", label: "Not on website (or draft)" }]} onChange={(e) => setDraft({ ...draft, web: e.target.value })} />
-          <div className="flex gap-2 sm:col-span-2 lg:col-span-4 xl:col-span-7">
+          <Select aria-label="Project" placeholder="All projects" value={draft.project ?? ""} options={WEBSITE_PROJECTS.map((p) => ({ value: p.slug, label: p.name }))} onChange={(e) => setDraft({ ...draft, project: e.target.value })} />
+          <Select aria-label="On website" placeholder="Website: any" value={draft.web ?? ""} options={[{ value: "yes", label: "On website" }, { value: "no", label: "Not on website" }]} onChange={(e) => setDraft({ ...draft, web: e.target.value })} />
+          <div className="flex gap-2 sm:col-span-2 lg:col-span-4">
             <Button type="submit">Apply</Button>
             <Button variant="outline" onClick={() => setFilters({}, true)}>
               Clear
@@ -84,7 +88,7 @@ export function InventoryPage() {
       <QueryView query={query}>
         {(data) =>
           data.items.length === 0 ? (
-            <EmptyState title="No properties match">Try clearing filters, or add a new item.</EmptyState>
+            <EmptyState title="No properties match">Try clearing filters, or add a new property.</EmptyState>
           ) : (
             <div className={cn("flex flex-col gap-3", query.status === "ready" && query.refreshing && "opacity-60")}>
               <Table>
@@ -119,8 +123,14 @@ export function InventoryPage() {
                       <Td className="whitespace-nowrap">{item.size}</Td>
                       <Td className="whitespace-nowrap">{item.asking_price ?? "—"}</Td>
                       <Td>
-                        {item.listing ? (
-                          item.listing.published ? <Badge tone="gold">Published</Badge> : <Badge>Draft</Badge>
+                        {item.published ? (
+                          <div className="flex items-center gap-2">
+                            {item.cover && <img src={item.cover.thumb} alt="" className="h-8 w-10 shrink-0 rounded object-cover" loading="lazy" />}
+                            <div className="flex flex-col items-start gap-1">
+                              <Badge tone="gold">Published</Badge>
+                              {item.featured && <Badge tone="purple">Featured</Badge>}
+                            </div>
+                          </div>
                         ) : (
                           <span className="text-muted-foreground">—</span>
                         )}
@@ -134,7 +144,7 @@ export function InventoryPage() {
                   ))}
                 </tbody>
               </Table>
-              <Pagination total={data.total} limit={PAGE_SIZE} offset={(page - 1) * PAGE_SIZE} noun="items" onChange={(offset) => setFilters({ page: String(offset / PAGE_SIZE + 1) })} />
+              <Pagination total={data.total} limit={PAGE_SIZE} offset={(page - 1) * PAGE_SIZE} noun="properties" onChange={(offset) => setFilters({ page: String(offset / PAGE_SIZE + 1) })} />
             </div>
           )
         }
@@ -156,7 +166,7 @@ function AddItemDialog({ open, onClose, towns, onCreated }: { open: boolean; onC
     event.preventDefault();
     const item = await create.run(form);
     if (item) {
-      toast.success("Item added");
+      toast.success("Property added");
       onClose();
       onCreated(item.id);
     }
@@ -166,7 +176,7 @@ function AddItemDialog({ open, onClose, towns, onCreated }: { open: boolean; onC
     <Dialog
       open={open}
       onClose={onClose}
-      title="Add inventory item"
+      title="Add property"
       width="max-w-5xl"
       footer={
         <>
@@ -174,7 +184,7 @@ function AddItemDialog({ open, onClose, towns, onCreated }: { open: boolean; onC
             Cancel
           </Button>
           <Button type="submit" form="add-inventory-form" pending={create.pending}>
-            Add item
+            Add property
           </Button>
         </>
       }

@@ -2,14 +2,16 @@ import type { D1Database, R2Bucket } from "@cloudflare/workers-types";
 
 export type Env = {
   DB: D1Database;
-  /** Listing photos; public at MEDIA_URL. */
+  /** Property photos; public at MEDIA_URL. */
   PHOTOS: R2Bucket;
+  /** Caps analytics events per IP (wrangler.jsonc "ratelimits"). */
+  COLLECT_LIMIT: { limit(options: { key: string }): Promise<{ success: boolean }> };
   APP_URL: string;
   PUBLIC_SITE_URL: string;
   MEDIA_URL: string;
   GSC_PROPERTY: string;
   CF_ACCOUNT_ID: string;
-  /** The Pages project and branch rebuilt when published listings change. */
+  /** The Pages project and branch rebuilt when published properties change. */
   LANDING_PROJECT: string;
   LANDING_BRANCH: string;
   /** Signs session cookies. */

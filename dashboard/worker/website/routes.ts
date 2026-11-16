@@ -3,8 +3,8 @@ import { requireAdmin } from "../auth/middleware";
 import type { AuthedEnv } from "../env";
 import { ApiError } from "../http";
 import { zJson } from "../validation";
-import { WEBSITE_PROJECTS } from "./fields";
-import { readRebuildState, requestSiteRebuild, triggerSiteRebuild } from "./rebuild";
+import { WEBSITE_PROJECTS } from "../inventory/fields";
+import { readRebuildState, requestSiteRebuild, triggerSiteRebuild } from "../site-build";
 import { readWebsiteSettings, websiteSettingsSchema, writeWebsiteSettings } from "./settings";
 
 export const websiteRoutes = new Hono<AuthedEnv>()

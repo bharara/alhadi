@@ -1,6 +1,6 @@
 import React from "react";
 import { NavLink, Outlet, useLocation } from "react-router-dom";
-import { BarChart3, Building2, CheckSquare, Globe, LayoutDashboard, LogOut, Menu, MessageSquare, Users, X } from "lucide-react";
+import { Activity, BarChart3, Building2, CheckSquare, Globe, LayoutDashboard, LogOut, Menu, MessageSquare, Users, X } from "lucide-react";
 import { useSession } from "@/session";
 import { cn } from "@/ui/cn";
 import logo from "@/logo.png";
@@ -14,7 +14,8 @@ const NAV = [
     { to: "/inventory", label: "Properties", icon: Building2 },
   ] },
   { group: "Website", items: [
-    { to: "/website", label: "Website listings", icon: Globe },
+    { to: "/website", label: "Website", icon: Globe },
+    { to: "/site-analytics", label: "Site analytics", icon: Activity },
     { to: "/analytics", label: "Search analytics", icon: BarChart3 },
   ] },
 ] as const;

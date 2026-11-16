@@ -8,7 +8,7 @@
   "compatibility_flags": ["global_fetch_strictly_public"],
   "workers_dev": false,
   "preview_urls": false,
-  "routes": [{ "pattern": "dashboard.bestbuilderdeveloper.com", "custom_domain": true }],
+  "routes": [{ "pattern": "crm.bestbuilderdeveloper.com", "custom_domain": true }],
   "assets": {
     "directory": "dist",
     "not_found_handling": "single-page-application",
@@ -18,14 +18,14 @@
     {
       "binding": "DB",
       "database_name": "bbd",
-      // Set from `wrangler d1 create bbd` (see README, go-live step 2).
-      "database_id": "00000000-0000-0000-0000-000000000000",
+      // The bbd database in the Alhadi account.
+      "database_id": "c5bbffd8-f1a9-4304-bc7d-c45eab419af4",
       "migrations_dir": "migrations"
     }
   ],
   "triggers": { "crons": ["30 2 * * *"] },
   "vars": {
-    "APP_URL": "https://dashboard.bestbuilderdeveloper.com",
+    "APP_URL": "https://crm.bestbuilderdeveloper.com",
     "PUBLIC_SITE_URL": "https://bestbuilderdeveloper.com",
     "GSC_PROPERTY": "sc-domain:bestbuilderdeveloper.com"
   },

@@ -1,15 +1,13 @@
 # Best Builders dashboard
 
 The CRM (ported from propCRM), website listings and Search Console analytics for bestbuilderdeveloper.com.
-It runs as one Cloudflare Worker with D1, serving a React SPA. Everything lives in the **Alhadi** Cloudflare account.
-`account_id` is pinned in `wrangler.jsonc`, and every remote command goes through `scripts/cf.sh`, which refuses to run unless the `alhadi` cf profile can see that account.
+It runs as one Cloudflare Worker with D1, serving a React SPA. Everything lives in the **Alhadi** Cloudflare account (`account_id` is pinned in `wrangler.jsonc`).
 
 | Path | What |
 |---|---|
 | `worker/` | Hono API. One folder per feature (`prospects/`, `inventory/`, `website/`, `analytics/`, `users/`, `auth/`, `report/`) |
 | `src/` | React 19 + Vite + Tailwind SPA. It talks to the Worker through the typed Hono client (`src/lib/api.ts`) |
 | `migrations/` | D1 schema (plain SQL, applied with `wrangler d1 migrations apply`) |
-| `scripts/` | `cf.sh` (Alhadi credentials), `deploy.sh`, `create-admin.mjs` |
 
 ## How the website gets its listings
 
@@ -24,48 +22,40 @@ It runs as one Cloudflare Worker with D1, serving a React SPA. Everything lives 
 pnpm install
 cp .dev.vars.example .dev.vars        # then put long random values in it
 pnpm db:migrate:local
-node scripts/create-admin.mjs admin   # asks for a password
 pnpm dev                              # builds the SPA, then wrangler dev on :8787 (local D1)
 ```
 
-For SPA hot reload, run `pnpm dev:vite` (port 5173) alongside `wrangler dev`; it proxies `/api` to the Worker on :8787.
+Create a local user by inserting a row into `users` with `wrangler d1 execute DB --local`.
+The hash format is in `worker/auth/password.ts` and must be computed with the same `PASSWORD_PEPPER` as `.dev.vars`.
+
+For SPA hot reload, run `pnpm dev:vite` (port 5173) alongside `wrangler dev`; it proxies `/api` to the Worker.
 To point the landing site at the local Worker, run `PUBLIC_LISTINGS_API=http://localhost:8787 pnpm dev` in `landing/`.
 
 `pnpm check` runs the typecheck and the production build.
 
-## Go live (one time)
+## Deployment
 
-Prerequisite: `cf auth whoami --profile alhadi` lists the Alhadi account (`bc7bbdb0e3475207e1f89d1d96fcef69`).
+Both apps build from GitHub (`bharara/alhadi`) in the Alhadi Cloudflare account. Pushing deploys them.
 
-1. **Create the database** in the Alhadi account:
-   ```sh
-   cd dashboard && pnpm install
-   bash scripts/cf.sh wrangler d1 create bbd
-   ```
-   Copy the printed `database_id` into `wrangler.jsonc`, replacing the zeros, and commit it.
-2. **Deploy.** This applies the migrations to the remote D1, then deploys the Worker and its custom domain `dashboard.bestbuilderdeveloper.com`:
-   ```sh
-   pnpm run deploy
-   ```
-3. **Set the secrets.** Generate each value with `openssl rand -hex 32`. Keep `PASSWORD_PEPPER` in your password manager: changing it invalidates every password.
-   ```sh
-   bash scripts/cf.sh wrangler secret put SESSION_SECRET
-   bash scripts/cf.sh wrangler secret put PASSWORD_PEPPER
-   ```
-4. **Create your admin account:**
-   ```sh
-   PASSWORD_PEPPER=<the value from step 3> node scripts/create-admin.mjs you@example.com --remote
-   ```
-   Sign in at https://dashboard.bestbuilderdeveloper.com. Invite the team from **User management**. Invites are links you copy or share on WhatsApp; no email is sent.
-5. **Search Console:**
-   1. In Google Cloud (any project): enable the *Google Search Console API*, create a service account, and download a JSON key.
-   2. In Search Console, open the `bestbuilderdeveloper.com` property. Go to Settings → Users and permissions → Add user, enter the service account's email, and choose *Restricted*.
-   3. The Worker expects the domain property `sc-domain:bestbuilderdeveloper.com`. If yours is a URL-prefix property, set `GSC_PROPERTY` in `wrangler.jsonc` to `https://bestbuilderdeveloper.com/` and redeploy.
-   4. Store the key: `bash scripts/cf.sh wrangler secret put GSC_SERVICE_ACCOUNT_JSON < key.json`, then delete the local key file.
-   5. In the dashboard, open **Search analytics** and click **Backfill 16 months**. A cron then re-syncs the last 5 days every day at 02:30 UTC.
-6. **Publish some properties** (Properties → Website card → Show on website), then redeploy the landing site so it includes the listings section: `cd ../landing && pnpm run deploy`.
+| App | Cloudflare project | Root | Deploys from |
+|---|---|---|---|
+| Dashboard | Worker `bbd-dashboard`, Workers Builds | `dashboard/` | the branch in its build trigger (currently `feat/crm`) |
+| Landing | Pages `best-builders-developers` | `landing/` | `main`; other branches get preview URLs |
 
-After this, `pnpm run deploy` in `dashboard/` ships every change: it runs typecheck, build, remote migrations and deploy.
+The dashboard's deploy command is `pnpm run deploy`, which applies D1 migrations and then runs `wrangler deploy`.
+
+**Resources:**
+- D1 database `bbd`.
+- Custom domain `crm.bestbuilderdeveloper.com`.
+- Cron `30 2 * * *`, which syncs the last 5 days of Search Console data.
+
+**Worker secrets:**
+
+| Secret | What it is |
+|---|---|
+| `SESSION_SECRET` | Signs session cookies |
+| `PASSWORD_PEPPER` | Mixed into every password hash. Changing it invalidates all passwords |
+| `GSC_SERVICE_ACCOUNT_JSON` | Google service-account key. The account must be a user on `sc-domain:bestbuilderdeveloper.com` |
 
 ## Free plan notes
 

@@ -56,7 +56,7 @@ export const contact = {
 } as const;
 
 /** The dashboard Worker that serves the listings chosen for the site. Override with PUBLIC_LISTINGS_API in dev. */
-export const listingsApi: string = import.meta.env.PUBLIC_LISTINGS_API ?? 'https://dashboard.bestbuilderdeveloper.com';
+export const listingsApi: string = import.meta.env.PUBLIC_LISTINGS_API ?? 'https://crm.bestbuilderdeveloper.com';
 
 export const waLink = (text: string) => `https://wa.me/${contact.whatsapp}?text=${encodeURIComponent(text)}`;
 

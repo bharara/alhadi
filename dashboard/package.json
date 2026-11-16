@@ -10,9 +10,7 @@
     "typecheck": "tsc --noEmit",
     "check": "pnpm typecheck && pnpm build",
     "db:migrate:local": "wrangler d1 migrations apply DB --local",
-    "db:migrate:remote": "bash scripts/cf.sh wrangler d1 migrations apply DB --remote",
-    "create-admin": "node scripts/create-admin.mjs",
-    "deploy": "bash scripts/deploy.sh"
+    "deploy": "wrangler d1 migrations apply DB --remote && wrangler deploy"
   },
   "dependencies": {
     "@hono/zod-validator": "^0.9.1",

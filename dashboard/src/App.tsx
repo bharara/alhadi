@@ -1,7 +1,7 @@
 import React from "react";
 import { createBrowserRouter, Navigate, Route, RouterProvider, Routes } from "react-router-dom";
 import { Toaster } from "sonner";
-import { AcceptInvitePage, LoginPage } from "@/auth/AuthPages";
+import { AcceptInvitePage, LoginPage, SetPasswordPage } from "@/auth/AuthPages";
 import { api, SIGNED_OUT_EVENT, unwrap, type Me } from "@/lib/api";
 import { Spinner } from "@/lib/hooks";
 import { AnalyticsPage } from "@/pages/analytics/AnalyticsPage";
@@ -55,12 +55,14 @@ function Root() {
       {auth.status === "signed-out" && (
         <Routes>
           <Route path="/accept-invite" element={<AcceptInvitePage onSignedIn={load} />} />
+          <Route path="/set-password" element={<SetPasswordPage onSignedIn={load} />} />
           <Route path="*" element={<LoginPage onSignedIn={load} />} />
         </Routes>
       )}
       {auth.status === "signed-in" && (
         <SessionProvider value={{ user: auth.user, signOut }}>
           <Routes>
+            <Route path="/set-password" element={<SetPasswordPage onSignedIn={load} />} />
             <Route element={<Shell />}>
               <Route index element={<DashboardPage />} />
               <Route path="prospects" element={<ProspectsPage />} />

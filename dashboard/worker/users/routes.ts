@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import { z } from "zod";
 import { requireAdmin } from "../auth/middleware";
 import { hashPassword, randomToken } from "../auth/password";
+import { createPasswordLink } from "../auth/password-links";
 import { all, first, newId, nowIso, run, type Db } from "../db";
 import type { AuthedEnv } from "../env";
 import { ApiError } from "../http";
@@ -42,6 +43,11 @@ export const userManagementRoutes = new Hono<AuthedEnv>()
     const hash = await hashPassword(c.req.valid("json").password, c.env.PASSWORD_PEPPER);
     await run(c.env.DB, "UPDATE users SET password_hash = ?, updated_at = ? WHERE id = ?", [hash, nowIso(), target.id]);
     return c.json({ ok: true });
+  })
+  .post("/users/:id/password-link", zParam(idParam), async (c) => {
+    const target = await loadUser(c.env.DB, c.req.valid("param").id);
+    if (!target.is_active) throw new ApiError(400, "Activate this user before sending a password link");
+    return c.json(await createPasswordLink(c.env.DB, target.id, c.env.APP_URL), 201);
   })
   .post("/users/:id/active", zParam(idParam), zJson(z.object({ is_active: z.boolean() })), async (c) => {
     const db = c.env.DB;

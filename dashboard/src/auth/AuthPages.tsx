@@ -2,7 +2,7 @@ import React from "react";
 import { useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import { api, errorMessage, unwrap } from "@/lib/api";
-import { Spinner, useQuery } from "@/lib/hooks";
+import { Spinner, useQuery, type Query } from "@/lib/hooks";
 import { Button } from "@/ui/button";
 import { Field, Input } from "@/ui/form";
 import logo from "@/logo.png";
@@ -60,9 +60,52 @@ export function LoginPage({ onSignedIn }: { onSignedIn: () => void }) {
 }
 
 export function AcceptInvitePage({ onSignedIn }: { onSignedIn: () => void }) {
-  const [params] = useSearchParams();
-  const token = params.get("token") ?? "";
+  const token = useToken();
   const invite = useQuery(() => unwrap(api.auth.invite.$get({ query: { token } })), token);
+  return (
+    <ChoosePassword
+      title="Accept invitation"
+      lookup={invite}
+      subtitle={(data) => `Create a password for ${data.email}.`}
+      submitLabel="Accept invitation"
+      save={(password) => unwrap(api.auth.invite.accept.$post({ json: { token, password } }))}
+      onSignedIn={onSignedIn}
+    />
+  );
+}
+
+export function SetPasswordPage({ onSignedIn }: { onSignedIn: () => void }) {
+  const token = useToken();
+  const link = useQuery(() => unwrap(api.auth["password-link"].$get({ query: { token } })), token);
+  return (
+    <ChoosePassword
+      title="Set your password"
+      lookup={link}
+      subtitle={(data) => `Choose a password for ${data.username}.`}
+      submitLabel="Set password and sign in"
+      save={(password) => unwrap(api.auth["password-link"].accept.$post({ json: { token, password } }))}
+      onSignedIn={onSignedIn}
+    />
+  );
+}
+
+const useToken = () => useSearchParams()[0].get("token") ?? "";
+
+function ChoosePassword<T>({
+  title,
+  lookup,
+  subtitle,
+  submitLabel,
+  save,
+  onSignedIn,
+}: {
+  title: string;
+  lookup: Query<T>;
+  subtitle: (data: T) => string;
+  submitLabel: string;
+  save: (password: string) => Promise<unknown>;
+  onSignedIn: () => void;
+}) {
   const [password, setPassword] = React.useState("");
   const [confirm, setConfirm] = React.useState("");
   const [pending, setPending] = React.useState(false);
@@ -74,7 +117,7 @@ export function AcceptInvitePage({ onSignedIn }: { onSignedIn: () => void }) {
     setPending(true);
     setError(null);
     try {
-      await unwrap(api.auth.invite.accept.$post({ json: { token, password } }));
+      await save(password);
       window.history.replaceState(null, "", "/");
       onSignedIn();
     } catch (err) {
@@ -84,10 +127,10 @@ export function AcceptInvitePage({ onSignedIn }: { onSignedIn: () => void }) {
     }
   }
 
-  if (invite.status === "loading") return <AuthFrame title="Accept invitation" subtitle="Checking your invitation…"><Spinner className="py-4" /></AuthFrame>;
-  if (invite.status === "error") return <AuthFrame title="Accept invitation" subtitle={invite.message}><a className="text-sm font-medium underline" href="/">Go to sign in</a></AuthFrame>;
+  if (lookup.status === "loading") return <AuthFrame title={title} subtitle="Checking your link…"><Spinner className="py-4" /></AuthFrame>;
+  if (lookup.status === "error") return <AuthFrame title={title} subtitle={lookup.message}><a className="text-sm font-medium underline" href="/">Go to sign in</a></AuthFrame>;
   return (
-    <AuthFrame title="Accept invitation" subtitle={`Create a password for ${invite.data.email}.`}>
+    <AuthFrame title={title} subtitle={subtitle(lookup.data)}>
       <form onSubmit={submit} className="flex flex-col gap-4">
         <Field label="Password" hint="At least 8 characters">
           <Input type="password" autoComplete="new-password" minLength={8} value={password} onChange={(e) => setPassword(e.target.value)} required autoFocus />
@@ -97,7 +140,7 @@ export function AcceptInvitePage({ onSignedIn }: { onSignedIn: () => void }) {
         </Field>
         {error && <p className="text-sm text-destructive">{error}</p>}
         <Button type="submit" pending={pending}>
-          Accept invitation
+          {submitLabel}
         </Button>
       </form>
     </AuthFrame>

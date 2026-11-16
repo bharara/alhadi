@@ -64,7 +64,7 @@ export function DashboardPage() {
       <Card
         title="Reporting"
         bodyClassName="flex flex-col gap-6"
-        actions={<span className="text-xs text-muted-foreground">{formatRange(range)} · UTC</span>}
+        actions={<span className="text-xs text-muted-foreground">{formatRange(range)} · PKT</span>}
       >
         <PeriodPicker range={range} onChange={(next) => setParams(next)} />
         <QueryView query={report}>

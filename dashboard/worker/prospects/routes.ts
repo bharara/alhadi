@@ -4,6 +4,7 @@ import type { D1PreparedStatement } from "@cloudflare/workers-types";
 import { all, batch, chunk, first, IN_CHUNK, newId, nowIso, parseJson, placeholders, run, stmt } from "../db";
 import type { AuthedEnv } from "../env";
 import { ApiError } from "../http";
+import { pktDay, pktDayStart } from "../time";
 import { idParam, isoInstant, zJson, zParam } from "../validation";
 import {
   normalizePhoneOrThrow,
@@ -114,9 +115,7 @@ export const prospectRoutes = new Hono<AuthedEnv>()
     return c.json({ tags: rows.map((r) => r.tag).sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" })) });
   })
   .get("/stats", async (c) => {
-    const monthStart = new Date();
-    monthStart.setUTCDate(1);
-    monthStart.setUTCHours(0, 0, 0, 0);
+    const monthStart = pktDayStart(`${pktDay().slice(0, 8)}01`);
     const row = await first<{ total: number; contacted: number; month: number }>(
       c.env.DB,
       `SELECT COUNT(*) AS total,

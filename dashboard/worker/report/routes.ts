@@ -3,6 +3,7 @@ import { z } from "zod";
 import { all, parseJson } from "../db";
 import type { AuthedEnv } from "../env";
 import { ApiError } from "../http";
+import { pktDay, pktDayStart } from "../time";
 import { isoDate, zQuery } from "../validation";
 
 const ACTIVITY_KINDS = ["call", "whatsapp", "visit"] as const;
@@ -22,8 +23,8 @@ export const reportRoutes = new Hono<AuthedEnv>().get(
   zQuery(z.object({ start_date: isoDate, end_date: isoDate })),
   async (c) => {
     const { start_date, end_date } = c.req.valid("query");
-    const start = new Date(`${start_date}T00:00:00.000Z`);
-    const end = new Date(new Date(`${end_date}T00:00:00.000Z`).getTime() + DAY_MS);
+    const start = pktDayStart(start_date);
+    const end = new Date(pktDayStart(end_date).getTime() + DAY_MS);
     if (start >= end) throw new ApiError(422, "start_date must be on or before end_date");
     const spanDays = Math.round((end.getTime() - start.getTime()) / DAY_MS);
     if (spanDays > 365) throw new ApiError(422, "The date range can be at most 365 days");
@@ -115,15 +116,16 @@ export const reportRoutes = new Hono<AuthedEnv>().get(
       }))
       .sort((a, b) => b.cohort_size - a.cohort_size || a.campaign.localeCompare(b.campaign));
 
-    // Trend: daily buckets up to 30 days, otherwise weeks starting Monday.
+    // Trend: PKT days up to 30 days, otherwise weeks starting Monday. Dates are handled as calendar days.
     const weekly = spanDays > 30;
-    const bucketLabel = (iso: string) => {
-      const day = new Date(`${iso.slice(0, 10)}T00:00:00.000Z`);
-      if (weekly) day.setUTCDate(day.getUTCDate() - ((day.getUTCDay() + 6) % 7));
-      return day.toISOString().slice(0, 10);
+    const bucketOfDay = (day: string) => {
+      const date = new Date(`${day}T00:00:00.000Z`);
+      if (weekly) date.setUTCDate(date.getUTCDate() - ((date.getUTCDay() + 6) % 7));
+      return date.toISOString().slice(0, 10);
     };
+    const bucketLabel = (iso: string) => bucketOfDay(pktDay(iso));
     const trend = new Map<string, { bucket: string; calls: number; whatsapp: number; visits: number; people: Set<string> }>();
-    for (let t = new Date(bucketLabel(start.toISOString())).getTime(); t < end.getTime(); t += (weekly ? 7 : 1) * DAY_MS) {
+    for (let t = Date.parse(`${bucketOfDay(start_date)}T00:00:00.000Z`); t <= Date.parse(`${end_date}T00:00:00.000Z`); t += (weekly ? 7 : 1) * DAY_MS) {
       const bucket = new Date(t).toISOString().slice(0, 10);
       trend.set(bucket, { bucket, calls: 0, whatsapp: 0, visits: 0, people: new Set() });
     }

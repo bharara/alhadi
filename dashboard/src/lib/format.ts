@@ -1,6 +1,8 @@
-const dateTime = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric", hour: "numeric", minute: "2-digit" });
-const timeOnly = new Intl.DateTimeFormat("en-GB", { hour: "numeric", minute: "2-digit" });
-const dateOnly = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric" });
+import { fromPktWallTime, TIME_ZONE, toPktWallTime } from "@worker/time";
+
+const dateTime = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric", hour: "numeric", minute: "2-digit", timeZone: TIME_ZONE });
+const timeOnly = new Intl.DateTimeFormat("en-GB", { hour: "numeric", minute: "2-digit", timeZone: TIME_ZONE });
+const dateOnly = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: TIME_ZONE });
 const relative = new Intl.RelativeTimeFormat("en", { numeric: "auto" });
 
 // "in 2 hours · 15:00" within a week, otherwise "5 Mar 2026, 15:00".
@@ -25,11 +27,6 @@ export const titleFromKey = (key: string) => key.replace(/[_-]+/g, " ").replace(
 
 export const truncate = (value: string | null | undefined, max = 100) => (!value ? "" : value.length > max ? `${value.slice(0, max - 1)}…` : value);
 
-export function toLocalInput(value: string | null | undefined): string {
-  if (!value) return "";
-  const date = new Date(value);
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
-}
+export const toLocalInput = (value: string | null | undefined) => (value ? toPktWallTime(value) : "");
 
-export const fromLocalInput = (value: string) => (value ? new Date(value).toISOString() : null);
+export const fromLocalInput = (value: string) => (value ? fromPktWallTime(value).toISOString() : null);

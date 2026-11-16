@@ -53,7 +53,7 @@ Both apps build from GitHub (`bharara/alhadi`) in the Alhadi Cloudflare account.
 
 | App | Cloudflare project | Root | Deploys from |
 |---|---|---|---|
-| Dashboard | Worker `bbd-dashboard`, Workers Builds | `dashboard/` | the branch in its build trigger (currently `feat/crm`) |
+| Dashboard | Worker `bbd-dashboard`, Workers Builds | `dashboard/` | `main` |
 | Landing | Pages `best-builders-developers` | `landing/` | `main`; other branches get preview URLs |
 
 The dashboard's deploy command is `pnpm run deploy`, which applies D1 migrations and then runs `wrangler deploy`.
@@ -66,7 +66,6 @@ The dashboard's deploy command is `pnpm run deploy`, which applies D1 migrations
   - Photos under `listings/` never expire. They are deleted with their photo, listing or property, and Standard storage is kept because every page view reads them.
 - Custom domain `crm.bestbuilderdeveloper.com`.
 - Crons: `30 2 * * *` syncs the last 5 days of Search Console data; `*/5 * * * *` starts a pending landing rebuild.
-- When this branch merges, set `LANDING_BRANCH` to `main` and point the Workers Builds trigger at `main`.
 
 **Worker secrets:**
 

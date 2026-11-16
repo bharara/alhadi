@@ -1,3 +1,5 @@
+import { pktDay, pktDayStart } from "@worker/time";
+
 export const PERIODS = [
   { value: "today", label: "Today", days: 1 },
   { value: "7d", label: "Last 7 days", days: 7 },
@@ -12,14 +14,15 @@ const DAY_MS = 86_400_000;
 const MAX_DAYS = 365;
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
+// Calendar arithmetic on day strings; only rangeInstants turns days into PKT instants.
 const isoDay = (date: Date) => date.toISOString().slice(0, 10);
 const dayStart = (iso: string) => new Date(`${iso}T00:00:00.000Z`);
 
 export type Range = { period: PeriodValue; start: string; end: string };
 
-/** The UTC date range for the URL's period, custom ranges clamped to 365 days and ordered. */
+/** The PKT date range for the URL's period, custom ranges clamped to 365 days and ordered. */
 export function resolveRange(period: string | undefined, from: string | undefined, to: string | undefined): Range {
-  const today = isoDay(new Date());
+  const today = pktDay();
   if (period === "custom" && from && to && DATE_RE.test(from) && DATE_RE.test(to)) {
     let [start, end] = from <= to ? [from, to] : [to, from];
     if (end > today) end = today;
@@ -32,9 +35,9 @@ export function resolveRange(period: string | undefined, from: string | undefine
   return { period: preset.value, start: isoDay(new Date(dayStart(today).getTime() - (preset.days - 1) * DAY_MS)), end: today };
 }
 
-/** [start 00:00, end + 1 day 00:00) in UTC, as ISO instants for the prospect filters. */
+/** [start 00:00, end + 1 day 00:00) PKT, as ISO instants for the prospect filters. */
 export function rangeInstants(range: Range): { after: string; before: string } {
-  return { after: dayStart(range.start).toISOString(), before: new Date(dayStart(range.end).getTime() + DAY_MS).toISOString() };
+  return { after: pktDayStart(range.start).toISOString(), before: new Date(pktDayStart(range.end).getTime() + DAY_MS).toISOString() };
 }
 
 const label = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });

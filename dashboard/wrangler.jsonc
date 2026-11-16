@@ -33,8 +33,7 @@
     "GSC_PROPERTY": "sc-domain:bestbuilderdeveloper.com",
     "CF_ACCOUNT_ID": "bc7bbdb0e3475207e1f89d1d96fcef69",
     "LANDING_PROJECT": "best-builders-developers",
-    // Switch to "main" once feat/crm is merged.
-    "LANDING_BRANCH": "feat/crm"
+    "LANDING_BRANCH": "main"
   },
   "observability": { "enabled": true }
 }

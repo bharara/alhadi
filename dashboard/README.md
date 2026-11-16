@@ -9,12 +9,27 @@ It runs as one Cloudflare Worker with D1, serving a React SPA. Everything lives 
 | `src/` | React 19 + Vite + Tailwind SPA. It talks to the Worker through the typed Hono client (`src/lib/api.ts`) |
 | `migrations/` | D1 schema (plain SQL, applied with `wrangler d1 migrations apply`) |
 
-## How the website gets its listings
+## Internal inventory and the website directory
 
-1. Every property in **Properties** has a Website card. It sets the project page the property belongs to, whether it is shown, whether it is featured on the home page, whether the price and plot number are shown, a public title and details, and the display order.
-2. **Website listings** holds the section settings (headings, intro, how many on home, show sold) and quick toggles.
-3. `GET /api/public/listings` returns only those public fields. Owner contacts and internal notes never leave the Worker. Responses are cached at the edge for 60 seconds, and edits clear the cache.
-4. The landing site's `Listings.astro` fetches that endpoint in the browser and shows the cards. If nothing is published, the section stays hidden.
+**Inventory** (`inventory_items`) holds every property. It is internal: owner contacts, asking price, notes. Only signed-in staff see it.
+
+**Website listings** (`website_listings`, `listing_photos`) are the curated public directory. A listing points at one inventory item and holds only what the public sees:
+- web address (slug), title, card text, description, price text (shown as written; empty shows "Call for price")
+- features, photos, project page, featured on home, published, display order
+
+When the inventory item is marked sold, its listing hides from the site, or shows as sold if the "show sold" setting is on.
+
+**Photos:**
+- They are resized in the browser to WebP: 1600px for the full image, 600px for the thumbnail.
+- They are stored in R2 bucket `bbd-media`, served from `https://media.bestbuilderdeveloper.com`.
+- The first photo is the cover and the share image.
+
+**Two ways the site shows listings:**
+- **Live cards** (home "Available now", project pages) read `GET /api/public/listings`. It is cached for 60 seconds, and edits clear the cache.
+- **Static pages** (`/properties/` and `/properties/<slug>/`) are built by the landing site from `GET /api/public/listings/full`.
+  - A change to a published listing marks the site for rebuild.
+  - A 5-minute cron starts one Pages build once edits have settled for 2 minutes. Admins can also click "Rebuild site now" under Website listings.
+  - The build uses `PAGES_API_TOKEN` and builds `LANDING_BRANCH`.
 
 ## Local development
 
@@ -46,8 +61,10 @@ The dashboard's deploy command is `pnpm run deploy`, which applies D1 migrations
 
 **Resources:**
 - D1 database `bbd`.
+- R2 bucket `bbd-media`, public at `media.bestbuilderdeveloper.com`.
 - Custom domain `crm.bestbuilderdeveloper.com`.
-- Cron `30 2 * * *`, which syncs the last 5 days of Search Console data.
+- Crons: `30 2 * * *` syncs the last 5 days of Search Console data; `*/5 * * * *` starts a pending landing rebuild.
+- When this branch merges, set `LANDING_BRANCH` to `main` and point the Workers Builds trigger at `main`.
 
 **Worker secrets:**
 
@@ -55,6 +72,7 @@ The dashboard's deploy command is `pnpm run deploy`, which applies D1 migrations
 |---|---|
 | `SESSION_SECRET` | Signs session cookies |
 | `PASSWORD_PEPPER` | Mixed into every password hash. Changing it invalidates all passwords |
+| `PAGES_API_TOKEN` | Cloudflare token with Pages edit access. Starts landing builds when listings change |
 | `GSC_SERVICE_ACCOUNT_JSON` | Google service-account key. The account must be a user on `sc-domain:bestbuilderdeveloper.com` |
 
 ## Free plan notes

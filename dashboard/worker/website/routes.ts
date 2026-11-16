@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import { requireAdmin } from "../auth/middleware";
 import type { AuthedEnv } from "../env";
+import { ApiError } from "../http";
 import { WEBSITE_PROJECTS } from "../inventory/fields";
 import { zJson } from "../validation";
 import { readRebuildState, requestSiteRebuild, triggerSiteRebuild } from "./rebuild";
@@ -21,4 +22,8 @@ export const websiteRoutes = new Hono<AuthedEnv>()
     c.executionCtx.waitUntil(requestSiteRebuild(c.env, c.req.url));
     return c.json({ settings: await readWebsiteSettings(c.env.DB) });
   })
-  .post("/rebuild", requireAdmin, async (c) => c.json({ rebuild: await triggerSiteRebuild(c.env) }));
+  .post("/rebuild", requireAdmin, async (c) => {
+    const rebuild = await triggerSiteRebuild(c.env);
+    if (rebuild.error) throw new ApiError(502, rebuild.error);
+    return c.json({ rebuild });
+  });

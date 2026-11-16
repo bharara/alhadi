@@ -1,52 +1,219 @@
 import React from "react";
-import { Link } from "react-router-dom";
-import { ArrowDown, ArrowUp, ExternalLink, EyeOff } from "lucide-react";
+import { Link, useNavigate } from "react-router-dom";
+import { ExternalLink, ImageIcon, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import type { InferResponseType } from "hono/client";
-import { crm, unwrap, type InventoryItem } from "@/lib/api";
-import { QueryView, useAction, useQuery } from "@/lib/hooks";
-import { INVENTORY_TYPE_LABELS } from "@/lib/labels";
+import { crm, unwrap } from "@/lib/api";
+import { formatWhen } from "@/lib/format";
+import { QueryView, useAction, useQuery, useSearchState } from "@/lib/hooks";
+import { WEBSITE_PROJECTS } from "@/lib/labels";
 import { useSession } from "@/session";
 import { Button } from "@/ui/button";
 import { Checkbox, Field, Input, Textarea } from "@/ui/form";
 import { Badge, Card, EmptyState, PageHeader } from "@/ui/layout";
+import { Table, Td, Th, Tr } from "@/ui/table";
+import { cn } from "@/ui/cn";
 
 type WebsiteData = InferResponseType<typeof crm.website.$get, 200>;
 type Settings = WebsiteData["settings"];
-type ItemPatch = Partial<Pick<InventoryItem, "featured" | "show_price" | "published" | "website_order">>;
+type Rebuild = WebsiteData["rebuild"];
+type Listing = InferResponseType<typeof crm.listings.$get, 200>["listings"][number];
+
+const TABS = [
+  { value: "", label: "All" },
+  { value: "published", label: "Published" },
+  { value: "drafts", label: "Drafts" },
+] as const;
+
+const projectName = (slug: string | null) => WEBSITE_PROJECTS.find((p) => p.slug === slug)?.name ?? "No project page";
 
 export function WebsitePage() {
   const website = useQuery(() => unwrap(crm.website.$get()));
-  const items = useQuery(() => unwrap(crm.inventory.search.$post({ json: { published: true, limit: 200 } })));
+  const listings = useQuery(() => unwrap(crm.listings.$get()));
 
   return (
     <>
       <PageHeader
         title="Website listings"
-        lede="Choose what bestbuilderdeveloper.com shows. Changes appear on the site within about a minute."
+        lede="The curated directory on bestbuilderdeveloper.com. Create a listing from any property in Properties."
         actions={
           website.status === "ready" && (
-            <a href={website.data.site_url} target="_blank" rel="noopener" className="inline-flex h-10 items-center gap-2 rounded-md border border-border bg-card px-4 text-sm hover:bg-muted">
-              View site <ExternalLink className="h-4 w-4" />
+            <a href={`${website.data.site_url.replace(/\/$/, "")}/properties/`} target="_blank" rel="noopener" className="inline-flex h-10 items-center gap-2 rounded-md border border-border bg-card px-4 text-sm hover:bg-muted">
+              View directory <ExternalLink className="h-4 w-4" />
             </a>
           )
         }
       />
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,420px)_1fr]">
-        <QueryView query={website}>{(data) => <SettingsCard data={data} onSaved={(settings) => website.setData((d) => ({ ...d, settings }))} />}</QueryView>
-        <QueryView query={items}>
-          {(data) =>
-            website.status === "ready" ? (
-              <PublishedList
-                items={data.items}
-                website={website.data}
-                onChange={(next) => items.setData((d) => ({ ...d, items: next, total: next.length }))}
+      <div className="grid gap-6 xl:grid-cols-[1fr_minmax(0,380px)]">
+        <div className="min-w-0">
+          <QueryView query={listings}>
+            {(data) => (
+              <ListingsTable
+                listings={data.listings}
+                onChange={(next) => {
+                  listings.setData(() => ({ listings: next }));
+                  website.retry();
+                }}
               />
-            ) : null
-          }
-        </QueryView>
+            )}
+          </QueryView>
+        </div>
+        <div className="flex flex-col gap-6">
+          <QueryView query={website}>
+            {(data) => (
+              <>
+                <BuildCard rebuild={data.rebuild} onChange={(rebuild) => website.setData((d) => ({ ...d, rebuild }))} />
+                <SettingsCard data={data} onSaved={(settings) => website.setData((d) => ({ ...d, settings }))} />
+              </>
+            )}
+          </QueryView>
+        </div>
       </div>
     </>
+  );
+}
+
+function ListingsTable({ listings, onChange }: { listings: Listing[]; onChange: (listings: Listing[]) => void }) {
+  const navigate = useNavigate();
+  const [params, setParams] = useSearchState<"show">();
+  const tab = params.show ?? "";
+  const [busy, setBusy] = React.useState<string | null>(null);
+  const update = useAction((id: string, json: { published?: boolean; featured?: boolean }) => unwrap(crm.listings[":id"].$patch({ param: { id }, json })));
+  const shown = listings.filter((l) => (tab === "published" ? l.published : tab === "drafts" ? !l.published : true));
+
+  async function toggle(listing: Listing, json: { published?: boolean; featured?: boolean }) {
+    setBusy(listing.id);
+    const next = await update.run(listing.id, json);
+    setBusy(null);
+    if (!next) return;
+    const { photos: _photos, ...rest } = next;
+    onChange(listings.map((l) => (l.id === listing.id ? { ...l, ...rest } : l)));
+    if (json.published !== undefined) toast.success(json.published ? "Published. Its page goes live after the next site build." : "Unpublished");
+  }
+
+  return (
+    <div className="flex flex-col gap-3">
+      <div className="flex flex-wrap gap-1 rounded-lg border border-border bg-card p-1" role="tablist">
+        {TABS.map((t) => {
+          const count = listings.filter((l) => (t.value === "published" ? l.published : t.value === "drafts" ? !l.published : true)).length;
+          return (
+            <button
+              key={t.value}
+              role="tab"
+              aria-selected={tab === t.value}
+              onClick={() => setParams({ show: t.value || null }, true)}
+              className={cn("min-h-[40px] flex-1 rounded-md px-3 text-sm sm:flex-none", tab === t.value ? "bg-primary-muted font-medium" : "text-muted-foreground hover:bg-muted")}
+            >
+              {t.label} <span className="tabular-nums text-muted-foreground">{count}</span>
+            </button>
+          );
+        })}
+      </div>
+      {shown.length === 0 ? (
+        <EmptyState title={listings.length ? "Nothing in this tab" : "No listings yet"}>
+          {listings.length ? null : (
+            <>
+              Open a property in <Link to="/inventory" className="underline">Properties</Link> and choose "Create website listing".
+            </>
+          )}
+        </EmptyState>
+      ) : (
+        <Table>
+          <thead>
+            <tr>
+              <Th className="w-20">Photo</Th>
+              <Th>Listing</Th>
+              <Th>Status</Th>
+              <Th>Published</Th>
+              <Th>Home</Th>
+              <Th>Updated</Th>
+            </tr>
+          </thead>
+          <tbody>
+            {shown.map((listing) => (
+              <Tr key={listing.id} onClick={() => navigate(`/website/listings/${listing.id}`)}>
+                <Td>
+                  {listing.cover ? (
+                    <img src={listing.cover.thumb} alt="" className="h-12 w-16 rounded object-cover" loading="lazy" />
+                  ) : (
+                    <div className="flex h-12 w-16 items-center justify-center rounded bg-muted text-muted-foreground">
+                      <ImageIcon className="h-4 w-4" />
+                    </div>
+                  )}
+                </Td>
+                <Td className="min-w-[14rem]">
+                  <div className="font-medium">{listing.title}</div>
+                  <div className="text-xs text-muted-foreground">
+                    {projectName(listing.project_slug)} · {listing.photo_count} photo{listing.photo_count === 1 ? "" : "s"}
+                  </div>
+                </Td>
+                <Td>
+                  <div className="flex flex-wrap gap-1">
+                    {listing.published ? <Badge tone="gold">Published</Badge> : <Badge>Draft</Badge>}
+                    {listing.item.status === "sold" && <Badge tone="danger">Sold</Badge>}
+                  </div>
+                </Td>
+                <Td onClick={(e) => e.stopPropagation()}>
+                  <Toggle label={`Publish ${listing.title}`} checked={listing.published} disabled={!listing.can_edit || busy === listing.id} onChange={(v) => toggle(listing, { published: v })} />
+                </Td>
+                <Td onClick={(e) => e.stopPropagation()}>
+                  <Toggle label={`Feature ${listing.title} on home`} checked={listing.featured} disabled={!listing.can_edit || busy === listing.id} onChange={(v) => toggle(listing, { featured: v })} />
+                </Td>
+                <Td className="whitespace-nowrap text-muted-foreground">{formatWhen(listing.updated_at ?? listing.created_at)}</Td>
+              </Tr>
+            ))}
+          </tbody>
+        </Table>
+      )}
+    </div>
+  );
+}
+
+/** A 44px-tall hit area around a native checkbox. */
+function Toggle({ label, checked, disabled, onChange }: { label: string; checked: boolean; disabled?: boolean; onChange: (checked: boolean) => void }) {
+  return (
+    <label className={cn("flex h-11 w-11 cursor-pointer items-center justify-center", disabled && "cursor-not-allowed opacity-50")}>
+      <input type="checkbox" aria-label={label} className="h-4 w-4 accent-[hsl(var(--primary))]" checked={checked} disabled={disabled} onChange={(e) => onChange(e.target.checked)} />
+    </label>
+  );
+}
+
+function BuildCard({ rebuild, onChange }: { rebuild: Rebuild; onChange: (rebuild: Rebuild) => void }) {
+  const { user } = useSession();
+  const trigger = useAction(() => unwrap(crm.website.rebuild.$post()));
+
+  async function run() {
+    const result = await trigger.run();
+    if (!result) return;
+    onChange(result.rebuild);
+    if (result.rebuild.error) toast.error(result.rebuild.error);
+    else toast.success("Site build started. Pages update in a couple of minutes.");
+  }
+
+  return (
+    <Card
+      title="Site build"
+      actions={
+        user.role === "admin" && (
+          <Button size="sm" variant="outline" pending={trigger.pending} onClick={run}>
+            <RefreshCw className="h-3.5 w-3.5" /> Rebuild site now
+          </Button>
+        )
+      }
+    >
+      <p className="text-xs text-muted-foreground">Cards on the home and project pages update within a minute. Property pages update after the site rebuilds.</p>
+      <div className="mt-3 flex flex-col gap-2 text-sm">
+        {rebuild.requested_at ? (
+          <p className="rounded-md bg-amber-50 px-3 py-2 text-amber-900">Changes waiting to publish. The site rebuilds automatically within a few minutes.</p>
+        ) : (
+          <p className="text-muted-foreground">No changes waiting.</p>
+        )}
+        <p>
+          <span className="text-muted-foreground">Last build started:</span> {formatWhen(rebuild.triggered_at)}
+        </p>
+        {rebuild.error && <p className="rounded-md bg-rose-50 px-3 py-2 text-rose-800">{rebuild.error}</p>}
+      </div>
+    </Card>
   );
 }
 
@@ -78,7 +245,7 @@ function SettingsCard({ data, onSaved }: { data: WebsiteData; onSaved: (settings
         <fieldset disabled={!isAdmin} className="flex flex-col gap-5">
           <div className="flex flex-col gap-3">
             <div className="label-caps">Home page</div>
-            <Checkbox label="Show the listings section on the home page" hint="Shows featured listings first, then the newest." checked={form.home_enabled} disabled={!isAdmin} onChange={(v) => set("home_enabled", v)} />
+            <Checkbox label="Show the listings section on the home page" hint="Shows listings marked Featured on home." checked={form.home_enabled} disabled={!isAdmin} onChange={(v) => set("home_enabled", v)} />
             <Field label="Heading">
               <Input value={form.home_heading} maxLength={120} onChange={(e) => set("home_heading", e.target.value)} required />
             </Field>
@@ -105,96 +272,3 @@ function SettingsCard({ data, onSaved }: { data: WebsiteData; onSaved: (settings
   );
 }
 
-function PublishedList({ items, website, onChange }: { items: InventoryItem[]; website: WebsiteData; onChange: (items: InventoryItem[]) => void }) {
-  const update = useAction((id: string, json: ItemPatch) => unwrap(crm.inventory[":id"].$patch({ param: { id }, json })));
-  const [busy, setBusy] = React.useState<string | null>(null);
-
-  const groups = [
-    ...website.projects.map((p) => ({ key: p.slug as string | null, name: p.name, url: `${website.site_url}/${p.slug}/` })),
-    { key: null, name: "Home page only (no project)", url: website.site_url },
-  ]
-    .map((g) => ({ ...g, items: items.filter((i) => i.project_slug === g.key) }))
-    .filter((g) => g.key !== null || g.items.length > 0);
-
-  async function patch(item: InventoryItem, json: ItemPatch) {
-    setBusy(item.id);
-    const next = await update.run(item.id, json);
-    setBusy(null);
-    if (!next) return;
-    onChange(next.published ? items.map((i) => (i.id === next.id ? next : i)) : items.filter((i) => i.id !== next.id));
-    if (!next.published) toast.success("Removed from the website");
-  }
-
-  /** Swaps an item with its neighbour, renumbering the group so orders stay distinct. */
-  async function move(group: InventoryItem[], index: number, delta: -1 | 1) {
-    const target = index + delta;
-    if (target < 0 || target >= group.length) return;
-    const reordered = [...group];
-    [reordered[index], reordered[target]] = [reordered[target]!, reordered[index]!];
-    const changes = reordered.map((item, i) => ({ item, order: (i + 1) * 10 })).filter(({ item, order }) => item.website_order !== order);
-    setBusy(group[index]!.id);
-    const results = await Promise.all(changes.map(({ item, order }) => update.run(item.id, { website_order: order })));
-    setBusy(null);
-    const byId = new Map(results.filter((r): r is InventoryItem => Boolean(r)).map((r) => [r.id, r]));
-    onChange(items.map((i) => byId.get(i.id) ?? i).sort((a, b) => a.website_order - b.website_order));
-  }
-
-  if (!items.length)
-    return (
-      <EmptyState title="Nothing is on the website yet">
-        Open an item in <Link to="/inventory" className="font-medium underline">Inventory</Link> and turn on "Show on website".
-      </EmptyState>
-    );
-
-  return (
-    <div className="flex flex-col gap-4">
-      {groups.map((group) => (
-        <Card
-          key={group.key ?? "none"}
-          title={`${group.name} · ${group.items.length}`}
-          actions={
-            <a href={group.url} target="_blank" rel="noopener" className="inline-flex items-center gap-1 text-xs font-medium text-muted-foreground hover:text-foreground">
-              View page <ExternalLink className="h-3.5 w-3.5" />
-            </a>
-          }
-          bodyClassName="p-0"
-        >
-          {group.items.length === 0 ? (
-            <p className="px-4 py-4 text-sm text-muted-foreground">No listings on this page.</p>
-          ) : (
-            <ul className="divide-y divide-border">
-              {group.items.map((item, index) => (
-                <li key={item.id} className={`flex flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center ${busy === item.id ? "opacity-60" : ""}`}>
-                  <div className="flex shrink-0 gap-1">
-                    <Button variant="outline" size="icon" aria-label="Move up" disabled={!item.can_edit || index === 0 || busy !== null} onClick={() => move(group.items, index, -1)}>
-                      <ArrowUp className="h-4 w-4" />
-                    </Button>
-                    <Button variant="outline" size="icon" aria-label="Move down" disabled={!item.can_edit || index === group.items.length - 1 || busy !== null} onClick={() => move(group.items, index, 1)}>
-                      <ArrowDown className="h-4 w-4" />
-                    </Button>
-                  </div>
-                  <Link to={`/inventory/${item.id}`} className="min-w-0 flex-1 hover:underline">
-                    <div className="truncate font-medium">{item.public_title || `${item.size} ${INVENTORY_TYPE_LABELS[item.type].toLowerCase()}`}</div>
-                    <div className="truncate text-xs text-muted-foreground">
-                      {item.house_number}
-                      {item.block ? `, Block ${item.block}` : ""} · {item.town}
-                      {item.asking_price ? ` · ${item.asking_price}` : ""}
-                    </div>
-                  </Link>
-                  <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-                    {item.status === "sold" && <Badge>Sold</Badge>}
-                    <Checkbox label="Home" checked={item.featured} disabled={!item.can_edit || busy !== null} onChange={(v) => patch(item, { featured: v })} />
-                    <Checkbox label="Price" checked={item.show_price} disabled={!item.can_edit || busy !== null || !item.asking_price} onChange={(v) => patch(item, { show_price: v })} />
-                    <Button variant="ghost" size="sm" disabled={!item.can_edit || busy !== null} onClick={() => patch(item, { published: false })}>
-                      <EyeOff className="h-3.5 w-3.5" /> Unpublish
-                    </Button>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          )}
-        </Card>
-      ))}
-    </div>
-  );
-}

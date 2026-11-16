@@ -72,7 +72,6 @@ function Root() {
               <Route path="inventory" element={<InventoryPage />} />
               <Route path="inventory/:inventoryId" element={<InventoryDetailPage />} />
               <Route path="website" element={<WebsitePage />} />
-              <Route path="website/listings/*" element={<Navigate to="/inventory" replace />} />
               <Route path="site-analytics" element={<SiteAnalyticsPage />} />
               <Route path="analytics" element={<AnalyticsPage />} />
               <Route path="users" element={auth.user.role === "admin" ? <UsersPage /> : <Navigate to="/" replace />} />

@@ -1,98 +1,80 @@
 import { Hono } from "hono";
 import { z } from "zod";
-import { all, first, type Db } from "../db";
+import type { D1PreparedStatement } from "@cloudflare/workers-types";
+import { stmt } from "../db";
 import type { AuthedEnv } from "../env";
+import { autoTitle, type InventoryType } from "../inventory/fields";
 import { pktDay } from "../time";
 import { zQuery } from "../validation";
-import type { Channel } from "./fields";
+import { ENQUIRY_KINDS, type Channel, type EventKind } from "./fields";
 
 const DAY_MS = 86_400_000;
-const ENQUIRY = "kind IN ('whatsapp', 'call', 'form')";
+const isEnquiry = (column = "kind") => `${column} IN (${ENQUIRY_KINDS.map((k) => `'${k}'`).join(", ")})`;
 
-type Totals = { visitors: number; sessions: number; pageviews: number; enquiries: number; converting_sessions: number };
-type Breakdown = { key: string | null; sessions: number; enquiries: number; converting_sessions: number };
+// A visit is a browser session; conversion is the share of visits that sent at least one enquiry.
+const VISITS = `COUNT(DISTINCT session) AS visits, SUM(${isEnquiry()}) AS enquiries, COUNT(DISTINCT CASE WHEN ${isEnquiry()} THEN session END) AS converting_visits`;
+
+type Totals = { visits: number; pageviews: number; enquiries: number; converting_visits: number };
+type Breakdown<K = string | null> = { key: K; visits: number; enquiries: number; converting_visits: number };
+type PropertyRow = Breakdown<string> & { size: string; type: InventoryType; block: string | null; web_title: string | null; pageviews: number };
 
 const addDays = (day: string, days: number) => new Date(Date.parse(`${day}T00:00:00.000Z`) + days * DAY_MS).toISOString().slice(0, 10);
-
-const TOTALS = `SELECT COUNT(DISTINCT visitor) AS visitors, COUNT(DISTINCT session) AS sessions,
-    SUM(kind = 'pageview') AS pageviews, SUM(${ENQUIRY}) AS enquiries,
-    COUNT(DISTINCT CASE WHEN ${ENQUIRY} THEN session END) AS converting_sessions
-  FROM web_events WHERE day BETWEEN ? AND ?`;
-
-/** Sessions, enquiries and converting sessions per value of a column. */
-const breakdown = (db: Db, column: string, range: [string, string], limit = 20) =>
-  all<Breakdown>(
-    db,
-    `SELECT ${column} AS key, COUNT(DISTINCT session) AS sessions, SUM(${ENQUIRY}) AS enquiries,
-       COUNT(DISTINCT CASE WHEN ${ENQUIRY} THEN session END) AS converting_sessions
-     FROM web_events WHERE day BETWEEN ? AND ? GROUP BY ${column} ORDER BY sessions DESC, enquiries DESC, key LIMIT ${limit}`,
-    range,
-  );
-
-const normalize = (t: Partial<Totals> | null): Totals => ({
-  visitors: t?.visitors ?? 0,
-  sessions: t?.sessions ?? 0,
-  pageviews: t?.pageviews ?? 0,
-  enquiries: t?.enquiries ?? 0,
-  converting_sessions: t?.converting_sessions ?? 0,
-});
 
 export const siteAnalyticsRoutes = new Hono<AuthedEnv>().get("/", zQuery(z.object({ days: z.enum(["7", "28", "90", "365"]).default("28") })), async (c) => {
   const db = c.env.DB;
   const days = Number(c.req.valid("query").days);
   const end = pktDay();
   const start = addDays(end, -(days - 1));
-  const range: [string, string] = [start, end];
-  const previous: [string, string] = [addDays(start, -days), addDays(start, -1)];
+  const range = [start, end];
+  const previous = [addDays(start, -days), addDays(start, -1)];
 
-  const [current, before, daily, channels, sources, campaigns, pages, properties, countries, devices, enquiryKinds] = await Promise.all([
-    first<Totals>(db, TOTALS, range),
-    first<Totals>(db, TOTALS, previous),
-    all<{ day: string; visitors: number; pageviews: number; enquiries: number }>(
+  const totals = (r: string[]) => stmt(db, `SELECT ${VISITS}, SUM(kind = 'pageview') AS pageviews FROM web_events WHERE day BETWEEN ? AND ?`, r);
+  const breakdown = (column: string, limit: number) =>
+    stmt(db, `SELECT ${column} AS key, ${VISITS} FROM web_events WHERE day BETWEEN ? AND ? GROUP BY ${column} ORDER BY visits DESC, enquiries DESC, key LIMIT ${limit}`, range);
+  const queries: D1PreparedStatement[] = [
+    totals(range),
+    totals(previous),
+    stmt(db, `SELECT day, COUNT(DISTINCT session) AS visits, SUM(kind = 'pageview') AS pageviews, SUM(${isEnquiry()}) AS enquiries FROM web_events WHERE day BETWEEN ? AND ? GROUP BY day`, range),
+    breakdown("channel", 20),
+    breakdown("source", 20),
+    breakdown("campaign", 20),
+    stmt(
       db,
-      `SELECT day, COUNT(DISTINCT visitor) AS visitors, SUM(kind = 'pageview') AS pageviews, SUM(${ENQUIRY}) AS enquiries
-       FROM web_events WHERE day BETWEEN ? AND ? GROUP BY day ORDER BY day`,
+      `SELECT path AS key, SUM(kind = 'pageview') AS pageviews, ${VISITS} FROM web_events WHERE day BETWEEN ? AND ?
+       GROUP BY path ORDER BY pageviews DESC, enquiries DESC, key LIMIT 25`,
       range,
     ),
-    breakdown(db, "channel", range),
-    breakdown(db, "source", range),
-    breakdown(db, "campaign", range),
-    all<{ path: string; pageviews: number; visitors: number; enquiries: number }>(
+    stmt(
       db,
-      `SELECT path, SUM(kind = 'pageview') AS pageviews, COUNT(DISTINCT visitor) AS visitors, SUM(${ENQUIRY}) AS enquiries
-       FROM web_events WHERE day BETWEEN ? AND ? GROUP BY path ORDER BY pageviews DESC, enquiries DESC, path LIMIT 25`,
+      `SELECT e.property_id AS key, i.size, i.type, i.block, i.web_title, SUM(e.kind = 'pageview') AS pageviews,
+              COUNT(DISTINCT e.session) AS visits, SUM(${isEnquiry("e.kind")}) AS enquiries,
+              COUNT(DISTINCT CASE WHEN ${isEnquiry("e.kind")} THEN e.session END) AS converting_visits
+       FROM web_events e JOIN inventory_items i ON i.id = e.property_id
+       WHERE e.day BETWEEN ? AND ? GROUP BY e.property_id ORDER BY enquiries DESC, visits DESC, key LIMIT 25`,
       range,
     ),
-    all<{ slug: string; title: string | null; property_id: string | null; pageviews: number; enquiries: number }>(
-      db,
-      `SELECT e.property_slug AS slug, COALESCE(i.web_title, i.size || ' ' || replace(i.type, '_', ' ')) AS title, i.id AS property_id,
-              SUM(e.kind = 'pageview') AS pageviews, SUM(e.${ENQUIRY}) AS enquiries
-       FROM web_events e LEFT JOIN inventory_items i ON i.slug = e.property_slug
-       WHERE e.day BETWEEN ? AND ? AND e.property_slug IS NOT NULL
-       GROUP BY e.property_slug ORDER BY enquiries DESC, pageviews DESC LIMIT 25`,
-      range,
-    ),
-    breakdown(db, "country", range, 10),
-    breakdown(db, "device", range, 5),
-    all<{ kind: "whatsapp" | "call" | "form"; count: number }>(db, `SELECT kind, COUNT(*) AS count FROM web_events WHERE day BETWEEN ? AND ? AND ${ENQUIRY} GROUP BY kind`, range),
-  ]);
+    breakdown("country", 10),
+    breakdown("device", 5),
+    stmt(db, `SELECT kind, COUNT(*) AS count FROM web_events WHERE day BETWEEN ? AND ? AND ${isEnquiry()} GROUP BY kind`, range),
+  ];
+  const [current, before, daily, channels, sources, campaigns, pages, properties, countries, devices, enquiries] = (await db.batch(queries)).map((r) => r.results);
 
-  // Every day in the range appears, so quiet days chart as zero instead of disappearing.
-  const byDay = new Map(daily.map((d) => [d.day, d]));
-  const series = Array.from({ length: days }, (_, i) => addDays(start, i)).map((day) => byDay.get(day) ?? { day, visitors: 0, pageviews: 0, enquiries: 0 });
+  const empty: Totals = { visits: 0, pageviews: 0, enquiries: 0, converting_visits: 0 };
+  const byDay = new Map((daily as { day: string; visits: number; pageviews: number; enquiries: number }[]).map((d) => [d.day, d]));
 
   return c.json({
-    range: { start, end, previous_start: previous[0], previous_end: previous[1] },
-    totals: normalize(current),
-    previous: normalize(before),
-    daily: series,
-    channels: channels as (Breakdown & { key: Channel })[],
-    sources,
-    campaigns: campaigns.filter((row) => row.key),
-    pages,
-    properties,
-    countries,
-    devices,
-    enquiries: enquiryKinds,
+    range: { start, end, previous_start: previous[0]!, previous_end: previous[1]! },
+    totals: { ...empty, ...(current![0] as Partial<Totals>) },
+    previous: { ...empty, ...(before![0] as Partial<Totals>) },
+    // Every day appears, so quiet days chart as zero.
+    daily: Array.from({ length: days }, (_, i) => addDays(start, i)).map((day) => byDay.get(day) ?? { day, visits: 0, pageviews: 0, enquiries: 0 }),
+    channels: channels as Breakdown<Channel>[],
+    sources: sources as Breakdown[],
+    campaigns: (campaigns as Breakdown[]).filter((row) => row.key),
+    pages: pages as (Breakdown<string> & { pageviews: number })[],
+    properties: (properties as PropertyRow[]).map(({ size, type, block, web_title, ...row }) => ({ ...row, title: web_title || autoTitle({ size, type, block }) })),
+    countries: countries as Breakdown[],
+    devices: devices as Breakdown[],
+    enquiries: enquiries as { kind: Exclude<EventKind, "pageview">; count: number }[],
   });
 });

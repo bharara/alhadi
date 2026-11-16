@@ -6,7 +6,7 @@ import { crm, unwrap } from "@/lib/api";
 import { formatWhen } from "@/lib/format";
 import { QueryView, useAction, useQuery, useSearchState } from "@/lib/hooks";
 import { INVENTORY_STATUSES, INVENTORY_TYPE_LABELS, INVENTORY_TYPES } from "@worker/inventory/fields";
-import { WEBSITE_PROJECTS } from "@worker/website/fields";
+import { WEBSITE_PROJECTS } from "@worker/inventory/fields";
 import { Button } from "@/ui/button";
 import { Input, Select } from "@/ui/form";
 import { Badge, Card, Dialog, EmptyState, PageHeader, Pagination } from "@/ui/layout";
@@ -40,7 +40,7 @@ export function InventoryPage() {
             type: (filters.type as InventoryType) || null,
             status: (filters.status as InventoryStatus) || null,
             project_slug: (filters.project as ProjectSlug) || null,
-            on_website: filters.web === "yes" ? true : filters.web === "no" ? false : null,
+            published: filters.web === "yes" ? true : filters.web === "no" ? false : null,
             limit: PAGE_SIZE,
             offset: (page - 1) * PAGE_SIZE,
           },
@@ -123,12 +123,12 @@ export function InventoryPage() {
                       <Td className="whitespace-nowrap">{item.size}</Td>
                       <Td className="whitespace-nowrap">{item.asking_price ?? "—"}</Td>
                       <Td>
-                        {item.web.published ? (
+                        {item.published ? (
                           <div className="flex items-center gap-2">
-                            {item.web.cover && <img src={item.web.cover.thumb} alt="" className="h-8 w-10 shrink-0 rounded object-cover" loading="lazy" />}
+                            {item.cover && <img src={item.cover.thumb} alt="" className="h-8 w-10 shrink-0 rounded object-cover" loading="lazy" />}
                             <div className="flex flex-col items-start gap-1">
                               <Badge tone="gold">Published</Badge>
-                              {item.web.featured && <Badge tone="purple">Featured</Badge>}
+                              {item.featured && <Badge tone="purple">Featured</Badge>}
                             </div>
                           </div>
                         ) : (

@@ -40,7 +40,7 @@ FROM listing_photos p JOIN website_listings l ON l.id = p.listing_id;
 DROP TABLE listing_photos;
 DROP TABLE website_listings;
 
--- Site analytics: one row per pageview or enquiry. No cookies or IPs; `visitor` is a hash that rotates daily.
+-- Site analytics: one row per pageview or enquiry. No cookies or IPs; `visitor` is a hash with a daily random salt.
 CREATE TABLE web_events (
   id INTEGER PRIMARY KEY,
   at TEXT NOT NULL,
@@ -49,7 +49,7 @@ CREATE TABLE web_events (
   session TEXT NOT NULL,
   kind TEXT NOT NULL CHECK (kind IN ('pageview', 'whatsapp', 'call', 'form')),
   path TEXT NOT NULL,
-  property_slug TEXT,
+  property_id TEXT REFERENCES inventory_items (id) ON DELETE SET NULL,
   channel TEXT NOT NULL,
   source TEXT,
   campaign TEXT,

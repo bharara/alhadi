@@ -2,16 +2,16 @@ import React from "react";
 import { ArrowLeft, ArrowRight, ImagePlus, Star, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { crm, errorMessage, unwrap, type InventoryItem } from "@/lib/api";
-import { useAction } from "@/lib/hooks";
-import { INVENTORY_TYPE_LABELS } from "@worker/inventory/fields";
-import { MAX_PHOTOS, WEBSITE_PROJECTS } from "@worker/website/fields";
+import { dataOr, useAction, useQuery } from "@/lib/hooks";
+import type { InferResponseType } from "hono/client";
+import { INVENTORY_TYPE_LABELS, MAX_PHOTOS, WEBSITE_PROJECTS } from "@worker/inventory/fields";
 import { Button } from "@/ui/button";
 import { Checkbox, Field, Input, Select, TagsInput, Textarea } from "@/ui/form";
 import { Badge, Card, ConfirmDialog } from "@/ui/layout";
 import { cn } from "@/ui/cn";
 import { uploadPhoto } from "./photos";
 
-type Photo = InventoryItem["photos"][number];
+type Photo = InferResponseType<(typeof crm.inventory)[":id"]["photos"]["$get"], 200>["photos"][number];
 type ProjectSlug = (typeof WEBSITE_PROJECTS)[number]["slug"];
 
 const FEATURE_SUGGESTIONS = ["Corner", "Park facing", "Main boulevard", "Possession ready", "50 ft road", "Near mosque", "Near commercial"];
@@ -20,51 +20,60 @@ type WebForm = {
   published: boolean;
   featured: boolean;
   project_slug: ProjectSlug | "";
-  title: string;
+  web_title: string;
   slug: string;
-  summary: string;
-  description: string;
-  price: string;
+  web_summary: string;
+  web_description: string;
+  web_price: string;
   show_number: boolean;
-  features: string[];
-  order: number;
+  web_features: string[];
+  web_order: number;
 };
 
-const formOf = ({ web }: InventoryItem): WebForm => ({
-  published: web.published,
-  featured: web.featured,
-  project_slug: web.project_slug ?? "",
-  title: web.title ?? "",
-  slug: web.slug ?? "",
-  summary: web.summary ?? "",
-  description: web.description ?? "",
-  price: web.price ?? "",
-  show_number: web.show_number,
-  features: web.features,
-  order: web.order,
+const formOf = (item: InventoryItem): WebForm => ({
+  published: item.published,
+  featured: item.featured,
+  project_slug: item.project_slug ?? "",
+  web_title: item.web_title ?? "",
+  slug: item.slug ?? "",
+  web_summary: item.web_summary ?? "",
+  web_description: item.web_description ?? "",
+  web_price: item.web_price ?? "",
+  show_number: item.show_number,
+  web_features: item.web_features,
+  web_order: item.web_order,
 });
+
+// Only changed fields are sent, so the Worker can fill in a project and web address when publishing.
+function changesOf(form: WebForm, saved: WebForm) {
+  const changed = (Object.keys(form) as (keyof WebForm)[]).filter((key) => JSON.stringify(form[key]) !== JSON.stringify(saved[key]));
+  const pick = <K extends keyof WebForm>(key: K) => (changed.includes(key) ? form[key] : undefined);
+  return {
+    published: pick("published"),
+    featured: pick("featured"),
+    project_slug: changed.includes("project_slug") ? form.project_slug || null : undefined,
+    web_title: pick("web_title"),
+    slug: pick("slug") || undefined,
+    web_summary: pick("web_summary"),
+    web_description: pick("web_description"),
+    web_price: pick("web_price"),
+    show_number: pick("show_number"),
+    web_features: pick("web_features"),
+    web_order: changed.includes("web_order") ? (Number.isFinite(form.web_order) ? Math.trunc(form.web_order) : 0) : undefined,
+  };
+}
 
 export function WebsiteTab({ item, site, onChange }: { item: InventoryItem; site: string; onChange: (item: InventoryItem) => void }) {
   const [form, setForm] = React.useState<WebForm>(() => formOf(item));
+  const photos = useQuery(() => unwrap(crm.inventory[":id"].photos.$get({ param: { id: item.id } })).then((r) => r.photos), item.id);
   const disabled = !item.can_edit;
   const set = <K extends keyof WebForm>(key: K, value: WebForm[K]) => setForm((f) => ({ ...f, [key]: value }));
   const dirty = JSON.stringify(form) !== JSON.stringify(formOf(item));
-  const save = useAction((web: WebForm) =>
-    unwrap(
-      crm.inventory[":id"].$patch({
-        param: { id: item.id },
-        json: {
-          web: {
-            ...web,
-            project_slug: web.project_slug || null,
-            // An empty web address lets publishing generate one.
-            slug: web.slug || undefined,
-            order: Number.isFinite(web.order) ? Math.trunc(web.order) : 0,
-          },
-        },
-      }),
-    ),
-  );
+  const save = useAction((web: WebForm) => unwrap(crm.inventory[":id"].$patch({ param: { id: item.id }, json: changesOf(web, formOf(item)) })));
+  const refresh = async (next: Photo[]) => {
+    photos.setData(() => next);
+    onChange(await unwrap(crm.inventory[":id"].$get({ param: { id: item.id } })));
+  };
 
   async function submit(event: React.FormEvent) {
     event.preventDefault();
@@ -72,7 +81,7 @@ export function WebsiteTab({ item, site, onChange }: { item: InventoryItem; site
     if (!next) return;
     onChange(next);
     setForm(formOf(next));
-    toast.success(next.web.published ? "Saved. The website updates after the automatic rebuild (a few minutes)." : "Saved. Not on the website.");
+    toast.success(next.published ? "Saved. The website updates after the automatic rebuild (a few minutes)." : "Saved. Not on the website.");
   }
 
   return (
@@ -90,7 +99,7 @@ export function WebsiteTab({ item, site, onChange }: { item: InventoryItem; site
         >
           <fieldset disabled={disabled} className="grid gap-4 sm:grid-cols-2">
             <Field label="Title" className="sm:col-span-2" hint="Leave empty to use the suggested title.">
-              <Input value={form.title} maxLength={160} placeholder={item.web.auto_title} onChange={(e) => set("title", e.target.value)} />
+              <Input value={form.web_title} maxLength={160} placeholder={item.auto_title} onChange={(e) => set("web_title", e.target.value)} />
             </Field>
             <Field label="Web address" className="sm:col-span-2" hint="Filled in when you publish. Changing it later breaks links already shared.">
               <div className="flex min-w-0 items-stretch overflow-hidden rounded-md border border-border focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/30">
@@ -99,7 +108,6 @@ export function WebsiteTab({ item, site, onChange }: { item: InventoryItem; site
                   className="h-10 min-w-0 flex-1 bg-card px-3 text-sm outline-none disabled:bg-muted"
                   value={form.slug}
                   maxLength={120}
-                  pattern="[a-z0-9]+(-[a-z0-9]+)*"
                   placeholder="generated-on-publish"
                   onChange={(e) => set("slug", e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "-"))}
                 />
@@ -114,21 +122,21 @@ export function WebsiteTab({ item, site, onChange }: { item: InventoryItem; site
               />
             </Field>
             <Field label="Price text" hint='Shown exactly as written, e.g. "Starting PKR 2.4 crore".'>
-              <Input value={form.price} maxLength={120} placeholder="Call for price" onChange={(e) => set("price", e.target.value)} />
+              <Input value={form.web_price} maxLength={120} placeholder="Call for price" onChange={(e) => set("web_price", e.target.value)} />
             </Field>
-            <Field label="Card text" className="sm:col-span-2" hint={`${form.summary.length}/300. Shown on property cards.`}>
-              <Textarea rows={2} maxLength={300} value={form.summary} onChange={(e) => set("summary", e.target.value)} />
+            <Field label="Card text" className="sm:col-span-2" hint={`${form.web_summary.length}/300. Shown on property cards.`}>
+              <Textarea rows={2} maxLength={300} value={form.web_summary} onChange={(e) => set("web_summary", e.target.value)} />
             </Field>
             <Field label="Description" className="sm:col-span-2" hint="Shown on the property page. Leave a blank line between paragraphs.">
-              <Textarea rows={8} maxLength={5000} value={form.description} onChange={(e) => set("description", e.target.value)} />
+              <Textarea rows={8} maxLength={5000} value={form.web_description} onChange={(e) => set("web_description", e.target.value)} />
             </Field>
             <Field label="Features" className="sm:col-span-2" hint="Short highlights, up to 20.">
-              <TagsInput value={form.features} onChange={(v) => set("features", v.slice(0, 20))} suggestions={FEATURE_SUGGESTIONS} disabled={disabled} placeholder="e.g. Corner" />
+              <TagsInput value={form.web_features} onChange={(v) => set("web_features", v.slice(0, 20))} suggestions={FEATURE_SUGGESTIONS} disabled={disabled} placeholder="e.g. Corner" />
             </Field>
           </fieldset>
         </Card>
 
-        <PhotosCard item={item} disabled={disabled} onChange={(photos) => onChange({ ...item, photos, web: { ...item.web, photo_count: photos.length, cover: photos[0] ? { full: photos[0].full, thumb: photos[0].thumb } : null } })} />
+        <PhotosCard propertyId={item.id} photos={dataOr(photos, [])} disabled={disabled} onChange={(next) => void refresh(next)} />
       </div>
 
       <div className="flex flex-col gap-4">
@@ -137,13 +145,13 @@ export function WebsiteTab({ item, site, onChange }: { item: InventoryItem; site
             <Checkbox label="Show on website" hint="Gives the property its own page and lists it on the site." checked={form.published} disabled={disabled} onChange={(v) => set("published", v)} />
             <Checkbox label="Feature on home page" checked={form.featured} disabled={disabled} onChange={(v) => set("featured", v)} />
             <Checkbox label="Show plot / house number" hint={`No. ${item.house_number}`} checked={form.show_number} disabled={disabled} onChange={(v) => set("show_number", v)} />
-            <Field label="Display order" hint="Lower numbers show first.">
-              <Input type="number" value={form.order} disabled={disabled} onChange={(e) => set("order", Number(e.target.value))} className="max-w-[8rem]" />
+            <Field label="Display order" hint="Lower numbers show first. You can also reorder on the Website page.">
+              <Input type="number" value={form.web_order} disabled={disabled} onChange={(e) => set("web_order", Number(e.target.value))} className="max-w-[8rem]" />
             </Field>
             {dirty && <p className="text-xs text-amber-700">Unsaved changes.</p>}
           </div>
         </Card>
-        <Preview form={form} item={item} />
+        <Preview form={form} item={item} cover={dataOr(photos, [])[0]} />
       </div>
     </form>
   );
@@ -151,8 +159,7 @@ export function WebsiteTab({ item, site, onChange }: { item: InventoryItem; site
 
 type UploadState = { name: string; status: "waiting" | "uploading" | "done" | "error"; error?: string };
 
-function PhotosCard({ item, disabled, onChange }: { item: InventoryItem; disabled: boolean; onChange: (photos: Photo[]) => void }) {
-  const photos = item.photos;
+function PhotosCard({ propertyId, photos, disabled, onChange }: { propertyId: string; photos: Photo[]; disabled: boolean; onChange: (photos: Photo[]) => void }) {
   const [uploads, setUploads] = React.useState<UploadState[]>([]);
   const [dragging, setDragging] = React.useState(false);
   const [alts, setAlts] = React.useState<Record<string, string>>({});
@@ -160,9 +167,9 @@ function PhotosCard({ item, disabled, onChange }: { item: InventoryItem; disable
   const inputRef = React.useRef<HTMLInputElement>(null);
   const uploading = uploads.some((u) => u.status === "uploading" || u.status === "waiting");
   const arrange = useAction((order: string[], altsChanged: Record<string, string>) =>
-    unwrap(crm.inventory[":id"].photos.$put({ param: { id: item.id }, json: { order, alts: altsChanged } })),
+    unwrap(crm.inventory[":id"].photos.$put({ param: { id: propertyId }, json: { order, alts: altsChanged } })),
   );
-  const remove = useAction((photoId: string) => unwrap(crm.inventory[":id"].photos[":photoId"].$delete({ param: { id: item.id, photoId } })));
+  const remove = useAction((photoId: string) => unwrap(crm.inventory[":id"].photos[":photoId"].$delete({ param: { id: propertyId, photoId } })));
   const altsDirty = Object.entries(alts).some(([id, alt]) => (photos.find((p) => p.id === id)?.alt ?? "") !== alt);
 
   async function addFiles(fileList: FileList | File[]) {
@@ -177,7 +184,7 @@ function PhotosCard({ item, disabled, onChange }: { item: InventoryItem; disable
     for (const [index, file] of batch.entries()) {
       setUploads((u) => u.map((x, i) => (i === index ? { ...x, status: "uploading" } : x)));
       try {
-        latest = await uploadPhoto(item.id, file);
+        latest = await uploadPhoto(propertyId, file);
         onChange(latest);
         setUploads((u) => u.map((x, i) => (i === index ? { ...x, status: "done" } : x)));
       } catch (error) {
@@ -349,11 +356,9 @@ function PhotosCard({ item, disabled, onChange }: { item: InventoryItem; disable
   );
 }
 
-// Roughly how the card looks on bestbuilderdeveloper.com.
-function Preview({ form, item }: { form: WebForm; item: InventoryItem }) {
+function Preview({ form, item, cover }: { form: WebForm; item: InventoryItem; cover: Photo | undefined }) {
   const project = WEBSITE_PROJECTS.find((p) => p.slug === form.project_slug);
   const facts = [item.size, item.block && `Block ${item.block}`, form.show_number && `No. ${item.house_number}`].filter(Boolean).join(" · ");
-  const cover = item.photos[0];
   return (
     <Card title="Card preview">
       <div className={cn("overflow-hidden rounded-lg bg-[#070707] text-[#f2ede4]", !form.published && "opacity-60")}>
@@ -363,10 +368,10 @@ function Preview({ form, item }: { form: WebForm; item: InventoryItem }) {
             {INVENTORY_TYPE_LABELS[item.type]}
             {project ? ` · ${project.name}` : ""}
           </div>
-          <h3 className="mt-2 text-lg font-bold uppercase leading-tight">{form.title || item.web.auto_title}</h3>
+          <h3 className="mt-2 text-lg font-bold uppercase leading-tight">{form.web_title || item.auto_title}</h3>
           <p className="mt-1 text-sm text-[#cfc8bb]">{facts}</p>
-          {form.summary && <p className="mt-2 text-sm leading-relaxed text-[#9a958b]">{form.summary}</p>}
-          <p className="mt-4 text-lg font-semibold text-[#e7c27a]">{form.price || "Call for price"}</p>
+          {form.web_summary && <p className="mt-2 text-sm leading-relaxed text-[#9a958b]">{form.web_summary}</p>}
+          <p className="mt-4 text-lg font-semibold text-[#e7c27a]">{form.web_price || "Call for price"}</p>
           <p className="mt-2 text-sm font-semibold text-[#f3dcae]">View details →</p>
         </div>
       </div>

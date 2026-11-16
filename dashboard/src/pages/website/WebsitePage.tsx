@@ -6,7 +6,7 @@ import type { InferResponseType } from "hono/client";
 import { crm, unwrap } from "@/lib/api";
 import { formatWhen } from "@/lib/format";
 import { QueryView, useAction, useQuery } from "@/lib/hooks";
-import { WEBSITE_PROJECTS } from "@worker/website/fields";
+import { WEBSITE_PROJECTS } from "@worker/inventory/fields";
 import { useSession } from "@/session";
 import { Button } from "@/ui/button";
 import { Checkbox, Field, Input, Textarea } from "@/ui/form";
@@ -19,9 +19,21 @@ type Settings = WebsiteData["settings"];
 type Rebuild = WebsiteData["rebuild"];
 type Property = InferResponseType<typeof crm.inventory.search.$post, 200>["items"][number];
 
+const PAGE = 200;
+
+// Every published property, in site order (the search caps a page at 200).
+async function loadPublished(): Promise<Property[]> {
+  const items: Property[] = [];
+  for (;;) {
+    const page = await unwrap(crm.inventory.search.$post({ json: { published: true, order: "website", limit: PAGE, offset: items.length } }));
+    items.push(...page.items);
+    if (items.length >= page.total || !page.items.length) return items;
+  }
+}
+
 export function WebsitePage() {
   const website = useQuery(() => unwrap(crm.website.$get()));
-  const published = useQuery(() => unwrap(crm.inventory.search.$post({ json: { on_website: true, order: "website", limit: 200 } })));
+  const published = useQuery(loadPublished);
 
   return (
     <>
@@ -39,11 +51,11 @@ export function WebsitePage() {
       <div className="grid gap-6 xl:grid-cols-[1fr_minmax(0,380px)]">
         <div className="min-w-0">
           <QueryView query={published}>
-            {(data) => (
+            {(properties) => (
               <OnWebsite
-                properties={data.items}
-                onChange={(items) => {
-                  published.setData((d) => ({ ...d, items, total: items.length }));
+                properties={properties}
+                onChange={(next) => {
+                  published.setData(() => next);
                   website.retry();
                 }}
               />
@@ -65,43 +77,29 @@ export function WebsitePage() {
   );
 }
 
-type WebChange = { featured?: boolean; published?: boolean; order?: number };
+const projectName = new Map<string, string>(WEBSITE_PROJECTS.map((p) => [p.slug, p.name]));
 
 function OnWebsite({ properties, onChange }: { properties: Property[]; onChange: (properties: Property[]) => void }) {
   const navigate = useNavigate();
+  const { user } = useSession();
   const [busy, setBusy] = React.useState<string | null>(null);
-  const update = useAction((id: string, web: WebChange) => unwrap(crm.inventory[":id"].$patch({ param: { id }, json: { web } })));
-  const groups = WEBSITE_PROJECTS.map((p): { slug: string | null; name: string } => ({ slug: p.slug, name: p.name }))
-    .concat([{ slug: null, name: "No project page" }])
-    .map((g) => ({ ...g, items: properties.filter((p) => p.web.project_slug === g.slug) }))
-    .filter((g) => g.items.length);
+  const update = useAction((id: string, json: { featured?: boolean; published?: boolean }) => unwrap(crm.inventory[":id"].$patch({ param: { id }, json })));
+  const reorder = useAction((ids: string[]) => unwrap(crm.inventory["web-order"].$put({ json: { ids } })));
 
-  async function change(property: Property, web: WebChange) {
+  async function change(property: Property, json: { featured?: boolean; published?: boolean }) {
     setBusy(property.id);
-    const next = await update.run(property.id, web);
+    const next = await update.run(property.id, json);
     setBusy(null);
     if (!next) return;
-    const { photos: _photos, ...rest } = next;
-    onChange(web.published === false ? properties.filter((p) => p.id !== property.id) : properties.map((p) => (p.id === property.id ? { ...p, ...rest } : p)));
-    if (web.published === false) toast.success("Taken off the website. It leaves after the automatic rebuild.");
+    onChange(json.published === false ? properties.filter((p) => p.id !== property.id) : properties.map((p) => (p.id === property.id ? next : p)));
+    if (json.published === false) toast.success("Taken off the website. It leaves after the automatic rebuild.");
   }
 
-  // Renumbers the group as 10, 20, 30… in its new order.
-  async function move(group: Property[], index: number, to: number) {
-    const ordered = [...group];
+  async function move(index: number, to: number) {
+    const ordered = [...properties];
     const [moved] = ordered.splice(index, 1);
     ordered.splice(to, 0, moved!);
-    let next = properties;
-    for (const [i, property] of ordered.entries()) {
-      const order = (i + 1) * 10;
-      if (property.web.order === order) continue;
-      setBusy(property.id);
-      const saved = await update.run(property.id, { order });
-      if (!saved) break;
-      next = next.map((p) => (p.id === property.id ? { ...p, web: { ...p.web, order } } : p));
-    }
-    setBusy(null);
-    onChange([...next].sort((a, b) => a.web.order - b.web.order));
+    if (await reorder.run(ordered.map((p) => p.id))) onChange(ordered.map((p, i) => ({ ...p, web_order: (i + 1) * 10 })));
   }
 
   if (!properties.length) {
@@ -112,67 +110,65 @@ function OnWebsite({ properties, onChange }: { properties: Property[]; onChange:
     );
   }
 
+  const canReorder = user.role === "admin" && !reorder.pending;
   return (
-    <div className="flex flex-col gap-6">
-      <p className="text-xs text-muted-foreground">Changes appear on the site after the automatic rebuild, a few minutes after your last edit.</p>
-      {groups.map((group) => (
-        <section key={group.slug ?? "none"} className="flex flex-col gap-2">
-          <h2 className="text-sm font-semibold">
-            {group.name} <span className="font-normal text-muted-foreground">({group.items.length})</span>
-          </h2>
-          <Table>
-            <thead>
-              <tr>
-                <Th className="w-20">Photo</Th>
-                <Th>Property</Th>
-                <Th>Home</Th>
-                <Th>Order</Th>
-                <Th className="text-right">Website</Th>
-              </tr>
-            </thead>
-            <tbody>
-              {group.items.map((property, index) => (
-                <Tr key={property.id} onClick={() => navigate(`/inventory/${property.id}?tab=website`)}>
-                  <Td>
-                    {property.web.cover ? (
-                      <img src={property.web.cover.thumb} alt="" className="h-12 w-16 rounded object-cover" loading="lazy" />
-                    ) : (
-                      <div className="flex h-12 w-16 items-center justify-center rounded bg-muted text-muted-foreground">
-                        <ImageIcon className="h-4 w-4" />
-                      </div>
-                    )}
-                  </Td>
-                  <Td className="min-w-[14rem]">
-                    <div className="font-medium">{property.web.title || property.web.auto_title}</div>
-                    <div className="mt-0.5 flex flex-wrap items-center gap-1 text-xs text-muted-foreground">
-                      {property.web.photo_count} photo{property.web.photo_count === 1 ? "" : "s"}
-                      {property.status === "sold" && <Badge tone="danger">Sold</Badge>}
-                    </div>
-                  </Td>
-                  <Td onClick={(e) => e.stopPropagation()}>
-                    <Toggle label="Feature on home page" checked={property.web.featured} disabled={!property.can_edit || busy === property.id} onChange={(v) => change(property, { featured: v })} />
-                  </Td>
-                  <Td onClick={(e) => e.stopPropagation()}>
-                    <div className="flex">
-                      <Button size="icon" variant="ghost" aria-label="Move up" className="h-11 w-11" disabled={index === 0 || busy !== null || !property.can_edit} onClick={() => move(group.items, index, index - 1)}>
-                        <ArrowUp className="h-4 w-4" />
-                      </Button>
-                      <Button size="icon" variant="ghost" aria-label="Move down" className="h-11 w-11" disabled={index === group.items.length - 1 || busy !== null || !property.can_edit} onClick={() => move(group.items, index, index + 1)}>
-                        <ArrowDown className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </Td>
-                  <Td className="text-right" onClick={(e) => e.stopPropagation()}>
-                    <Button size="sm" variant="outline" disabled={!property.can_edit || busy === property.id} onClick={() => change(property, { published: false })}>
-                      Unpublish
+    <div className="flex flex-col gap-2">
+      <p className="text-xs text-muted-foreground">This order is used across the site. Changes appear after the automatic rebuild, a few minutes after your last edit.</p>
+      <Table>
+        <thead>
+          <tr>
+            <Th className="w-20">Photo</Th>
+            <Th>Property</Th>
+            <Th>Project</Th>
+            <Th>Home</Th>
+            {user.role === "admin" && <Th>Order</Th>}
+            <Th className="text-right">Website</Th>
+          </tr>
+        </thead>
+        <tbody>
+          {properties.map((property, index) => (
+            <Tr key={property.id} onClick={() => navigate(`/inventory/${property.id}?tab=website`)}>
+              <Td>
+                {property.cover ? (
+                  <img src={property.cover.thumb} alt="" className="h-12 w-16 rounded object-cover" loading="lazy" />
+                ) : (
+                  <div className="flex h-12 w-16 items-center justify-center rounded bg-muted text-muted-foreground">
+                    <ImageIcon className="h-4 w-4" />
+                  </div>
+                )}
+              </Td>
+              <Td className="min-w-[14rem]">
+                <div className="font-medium">{property.web_title || property.auto_title}</div>
+                <div className="mt-0.5 flex flex-wrap items-center gap-1 text-xs text-muted-foreground">
+                  {property.photo_count} photo{property.photo_count === 1 ? "" : "s"}
+                  {property.status === "sold" && <Badge tone="danger">Sold</Badge>}
+                </div>
+              </Td>
+              <Td className="whitespace-nowrap text-muted-foreground">{property.project_slug ? projectName.get(property.project_slug) : "—"}</Td>
+              <Td onClick={(e) => e.stopPropagation()}>
+                <Toggle label="Feature on home page" checked={property.featured} disabled={!property.can_edit || busy === property.id} onChange={(v) => change(property, { featured: v })} />
+              </Td>
+              {user.role === "admin" && (
+                <Td onClick={(e) => e.stopPropagation()}>
+                  <div className="flex">
+                    <Button size="icon" variant="ghost" aria-label="Move up" className="h-11 w-11" disabled={index === 0 || !canReorder} onClick={() => move(index, index - 1)}>
+                      <ArrowUp className="h-4 w-4" />
                     </Button>
-                  </Td>
-                </Tr>
-              ))}
-            </tbody>
-          </Table>
-        </section>
-      ))}
+                    <Button size="icon" variant="ghost" aria-label="Move down" className="h-11 w-11" disabled={index === properties.length - 1 || !canReorder} onClick={() => move(index, index + 1)}>
+                      <ArrowDown className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </Td>
+              )}
+              <Td className="text-right" onClick={(e) => e.stopPropagation()}>
+                <Button size="sm" variant="outline" disabled={!property.can_edit || busy === property.id} onClick={() => change(property, { published: false })}>
+                  Unpublish
+                </Button>
+              </Td>
+            </Tr>
+          ))}
+        </tbody>
+      </Table>
     </div>
   );
 }
@@ -194,8 +190,7 @@ function BuildCard({ rebuild, onChange }: { rebuild: Rebuild; onChange: (rebuild
     const result = await trigger.run();
     if (!result) return;
     onChange(result.rebuild);
-    if (result.rebuild.error) toast.error(result.rebuild.error);
-    else toast.success("Site build started. Pages update in a couple of minutes.");
+    toast.success("Site build started. Pages update in a couple of minutes.");
   }
 
   return (

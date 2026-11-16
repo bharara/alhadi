@@ -1,8 +1,8 @@
 import { Bar, CartesianGrid, ComposedChart, Line, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 
-type DailyPoint = { day: string; visitors: number; pageviews: number; enquiries: number };
+type DailyPoint = { day: string; visits: number; pageviews: number; enquiries: number };
 
-const VISITORS = "hsl(216 60% 35%)";
+const VISITS = "hsl(216 60% 35%)";
 const PAGEVIEWS = "hsl(216 40% 78%)";
 const ENQUIRIES = "hsl(41 87% 45%)";
 const shortDate = (day: string) => new Date(`${day}T00:00:00Z`).toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "UTC" });
@@ -13,7 +13,7 @@ export default function TrafficChart({ data }: { data: DailyPoint[] }) {
       <div className="mb-2 flex flex-wrap gap-4 text-xs text-muted-foreground">
         {[
           ["Pageviews", PAGEVIEWS],
-          ["Visitors", VISITORS],
+          ["Visits", VISITS],
           ["Enquiries", ENQUIRIES],
         ].map(([label, color]) => (
           <span key={label} className="inline-flex items-center gap-1.5">
@@ -30,7 +30,7 @@ export default function TrafficChart({ data }: { data: DailyPoint[] }) {
             <YAxis yAxisId="enquiries" orientation="right" tick={{ fontSize: 11 }} tickLine={false} axisLine={false} allowDecimals={false} />
             <Tooltip labelFormatter={(label) => shortDate(String(label))} contentStyle={{ fontSize: 12, borderRadius: 8 }} />
             <Bar yAxisId="traffic" dataKey="pageviews" name="Pageviews" fill={PAGEVIEWS} radius={[2, 2, 0, 0]} />
-            <Bar yAxisId="traffic" dataKey="visitors" name="Visitors" fill={VISITORS} radius={[2, 2, 0, 0]} />
+            <Bar yAxisId="traffic" dataKey="visits" name="Visits" fill={VISITS} radius={[2, 2, 0, 0]} />
             <Line yAxisId="enquiries" type="monotone" dataKey="enquiries" name="Enquiries" stroke={ENQUIRIES} strokeWidth={2} dot={false} />
           </ComposedChart>
         </ResponsiveContainer>

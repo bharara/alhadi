@@ -4,20 +4,21 @@ import { toast } from "sonner";
 import type { InferResponseType } from "hono/client";
 import { crm, errorMessage, unwrap } from "@/lib/api";
 import { formatNumber, formatWhen } from "@/lib/format";
-import { QueryView, Spinner, useAction, useQuery, useSearchState } from "@/lib/hooks";
+import { QueryView, Spinner, useAction, useQuery } from "@/lib/hooks";
 import { useSession } from "@/session";
 import { Button } from "@/ui/button";
 import { Select } from "@/ui/form";
 import { Badge, Card, EmptyState, PageHeader, type Tone } from "@/ui/layout";
 import { Table, Td, Th, Tr } from "@/ui/table";
-import { cn } from "@/ui/cn";
+
+import { DeltaTile, PeriodSelect, percentChange, pointsChange, usePeriod } from "../analytics-shared";
 
 const DailyChart = React.lazy(() => import("./DailyChart"));
 
 type Search = InferResponseType<typeof crm.analytics.search.$get, 200>;
 type Row = Search["top_queries"][number];
 type Days = "7" | "28" | "90" | "180" | "365";
-const PERIODS: { value: Days; label: string }[] = [
+const PERIODS: readonly { value: Days; label: string }[] = [
   { value: "7", label: "Last 7 days" },
   { value: "28", label: "Last 28 days" },
   { value: "90", label: "Last 3 months" },
@@ -29,8 +30,7 @@ const BACKFILL_DAYS = 486;
 const WINDOW_DAYS = 90;
 
 export function AnalyticsPage() {
-  const [params, setParams] = useSearchState<"days">();
-  const days = (PERIODS.some((p) => p.value === params.days) ? params.days : "28") as Days;
+  const [days, setDays] = usePeriod(PERIODS);
   const query = useQuery(
     () => unwrap(crm.analytics.search.$get({ query: { days } })),
     days,
@@ -41,14 +41,14 @@ export function AnalyticsPage() {
       <PageHeader
         title="Search analytics"
         lede="How bestbuilderdeveloper.com performs in Google Search, from Search Console."
-        actions={<Select aria-label="Period" value={days} options={PERIODS} onChange={(e) => setParams({ days: e.target.value })} className="w-44" />}
+        actions={<PeriodSelect periods={PERIODS} value={days} onChange={setDays} />}
       />
-      <QueryView query={query}>{(data) => <AnalyticsBody data={data} days={days} onSynced={query.retry} />}</QueryView>
+      <QueryView query={query}>{(data) => <AnalyticsBody data={data} onSynced={query.retry} />}</QueryView>
     </>
   );
 }
 
-function AnalyticsBody({ data, days, onSynced }: { data: Search; days: Days; onSynced: () => void }) {
+function AnalyticsBody({ data, onSynced }: { data: Search; onSynced: () => void }) {
   if (!data.configured && !data.totals) return <SetupGuide property={data.property} />;
   const consoleUrl = `https://search.google.com/search-console/performance/search-analytics?resource_id=${encodeURIComponent(data.property)}`;
 
@@ -60,15 +60,14 @@ function AnalyticsBody({ data, days, onSynced }: { data: Search; days: Days; onS
       ) : (
         <>
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-            <MetricTile label="Clicks" value={formatNumber(data.totals.clicks)} delta={change(data.totals.clicks, data.previous.clicks)} days={days} />
-            <MetricTile label="Impressions" value={formatNumber(data.totals.impressions)} delta={change(data.totals.impressions, data.previous.impressions)} days={days} />
-            <MetricTile
+            <DeltaTile label="Clicks" value={formatNumber(data.totals.clicks)} delta={percentChange(data.totals.clicks, data.previous.clicks)} />
+            <DeltaTile label="Impressions" value={formatNumber(data.totals.impressions)} delta={percentChange(data.totals.impressions, data.previous.impressions)} />
+            <DeltaTile
               label="CTR"
               value={data.totals.ctr == null ? "—" : `${(data.totals.ctr * 100).toFixed(1)}%`}
-              delta={data.totals.ctr != null && data.previous.ctr != null ? { text: `${((data.totals.ctr - data.previous.ctr) * 100).toFixed(1)} pts`, good: data.totals.ctr >= data.previous.ctr } : null}
-              days={days}
+              delta={pointsChange(data.totals.ctr, data.previous.ctr)}
             />
-            <MetricTile
+            <DeltaTile
               label="Average position"
               value={data.totals.position == null ? "—" : data.totals.position.toFixed(1)}
               delta={
@@ -76,7 +75,6 @@ function AnalyticsBody({ data, days, onSynced }: { data: Search; days: Days; onS
                   ? { text: `${data.totals.position <= data.previous.position ? "▲" : "▼"} ${Math.abs(data.totals.position - data.previous.position).toFixed(1)}`, good: data.totals.position <= data.previous.position }
                   : null
               }
-              days={days}
             />
           </div>
 
@@ -196,18 +194,6 @@ function SetupGuide({ property }: { property: string }) {
   );
 }
 
-function MetricTile({ label, value, delta, days }: { label: string; value: string; delta: { text: string; good: boolean } | null; days: Days }) {
-  return (
-    <div className="rounded-lg border border-border bg-card p-4">
-      <div className="label-caps">{label}</div>
-      <div className="mt-1.5 text-2xl font-semibold tabular-nums">{value}</div>
-      <div className={cn("mt-1 text-xs", !delta ? "text-muted-foreground" : delta.good ? "text-success" : "text-destructive")}>
-        {delta ? `${delta.text} vs previous ${days} days` : "No earlier data"}
-      </div>
-    </div>
-  );
-}
-
 type SortKey = "clicks" | "impressions" | "position";
 
 function RankTable({ title, lede, rows, column, formatKey = (k) => k, initialSort = "clicks" }: { title: string; lede?: string; rows: Row[]; column: string; formatKey?: (key: string) => string; initialSort?: SortKey }) {
@@ -275,12 +261,6 @@ function RankTable({ title, lede, rows, column, formatKey = (k) => k, initialSor
 }
 
 const positionTone = (position: number): Tone => (position <= 3 ? "success" : position <= 10 ? "info" : position <= 20 ? "warning" : "neutral");
-
-function change(current: number, previous: number): { text: string; good: boolean } | null {
-  if (!previous) return null;
-  const pct = ((current - previous) / previous) * 100;
-  return { text: `${pct >= 0 ? "+" : ""}${pct.toFixed(0)}%`, good: pct >= 0 };
-}
 
 const day = (ms: number) => new Date(ms).toISOString().slice(0, 10);
 

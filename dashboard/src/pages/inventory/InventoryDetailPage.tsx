@@ -52,9 +52,9 @@ function PropertyDetail({ item, towns, site, onChange }: { item: InventoryItem; 
         lede={`${INVENTORY_TYPE_LABELS[item.type]} in ${item.town}`}
         actions={
           <>
-            {item.web.published && item.web.slug && site && (
+            {item.published && item.slug && site && (
               <a
-                href={`${site}/properties/${item.web.slug}/`}
+                href={`${site}/properties/${item.slug}/`}
                 target="_blank"
                 rel="noopener"
                 className="inline-flex h-10 items-center gap-2 rounded-md border border-border bg-card px-4 text-sm hover:bg-muted"
@@ -82,7 +82,7 @@ function PropertyDetail({ item, towns, site, onChange }: { item: InventoryItem; 
           <Badge tone={item.status === "available" ? "success" : "neutral"}>{item.status === "available" ? "Available" : "Sold"}</Badge>
         </Summary>
         <Summary label="Website">
-          {item.web.published ? <Badge tone="gold">{item.web.featured ? "Published · featured" : "Published"}</Badge> : <span className="text-muted-foreground">Not on website</span>}
+          {item.published ? <Badge tone="gold">{item.featured ? "Published · featured" : "Published"}</Badge> : <span className="text-muted-foreground">Not on website</span>}
         </Summary>
         <Summary label="Entered by">{item.entered_by_username ?? "—"}</Summary>
         <Summary label="Contact">{item.contact_name}</Summary>
@@ -111,12 +111,18 @@ function PropertyDetail({ item, towns, site, onChange }: { item: InventoryItem; 
         ))}
       </div>
 
-      {tab === "details" ? <DetailsTab item={item} towns={towns} onChange={onChange} /> : <WebsiteTab item={item} site={site} onChange={onChange} />}
+      {/* Both tabs stay mounted so switching never drops unsaved edits. */}
+      <div hidden={tab !== "details"}>
+        <DetailsTab item={item} towns={towns} onChange={onChange} />
+      </div>
+      <div hidden={tab !== "website"}>
+        <WebsiteTab item={item} site={site} onChange={onChange} />
+      </div>
 
       <ConfirmDialog
         open={confirmDelete}
         title="Remove this property?"
-        body={item.web.published ? "Its photos are removed and its page leaves the website after the next rebuild. This cannot be undone." : "Its photos are removed too. This cannot be undone."}
+        body={item.published ? "Its photos are removed and its page leaves the website after the next rebuild. This cannot be undone." : "Its photos are removed too. This cannot be undone."}
         confirmLabel="Remove property"
         danger
         pending={remove.pending}
@@ -138,7 +144,7 @@ function DetailsTab({ item, towns, onChange }: { item: InventoryItem; towns: str
     if (next) {
       onChange(next);
       setForm(formFromItem(next));
-      toast.success(next.web.published ? "Saved. The website updates after the automatic rebuild." : "Saved");
+      toast.success(next.published ? "Saved. The website updates after the automatic rebuild." : "Saved");
     }
   }
 

@@ -1,7 +1,7 @@
-import { nowIso, readSetting, run } from "../db";
-import type { Env } from "../env";
+import { nowIso, readSetting, run } from "./db";
+import type { Env } from "./env";
 
-// Listing pages are static; edits settle for DEBOUNCE_MS before the cron starts one landing build.
+// Property pages are static; edits settle for DEBOUNCE_MS before the cron starts one landing build.
 const KEY = "site_rebuild";
 const DEBOUNCE_MS = 2 * 60 * 1000;
 

@@ -1,9 +1,8 @@
 import { Hono } from "hono";
-import { all, parseJson } from "../db";
+import { parseJson } from "../db";
 import type { Env, WorkerEnv } from "../env";
-import { autoTitle, INVENTORY_TYPE_LABELS, type InventoryType } from "../inventory/fields";
-import { WEBSITE_PROJECTS } from "./fields";
-import { photoUrls } from "./photos";
+import { autoTitle, INVENTORY_TYPE_LABELS, WEBSITE_PROJECTS, type InventoryType } from "../inventory/fields";
+import { photoUrls } from "../inventory/photo-storage";
 import { readWebsiteSettings } from "./settings";
 
 type PublicRow = {
@@ -28,25 +27,24 @@ type PublicRow = {
 };
 type PhotoRow = { property_id: string; storage_key: string; width: number; height: number; alt: string | null };
 
-// Only what a listing chose to show leaves the Worker: no owner contacts, notes or internal asking price.
-async function publishedListings(env: Env) {
+// Only the website columns leave the Worker: no owner contacts, notes or internal asking price.
+async function publishedProperties(env: Env) {
   const settings = await readWebsiteSettings(env.DB);
-  const rows = await all<PublicRow>(
-    env.DB,
-    `SELECT id, slug, project_slug, web_title, web_summary, web_description, web_price, show_number, web_features, featured,
-            published_at, updated_at, created_at, type, status, size, block, house_number
-     FROM inventory_items
-     WHERE published = 1 AND slug IS NOT NULL ${settings.show_sold ? "" : "AND status = 'available'"}
-     ORDER BY web_order, COALESCE(published_at, created_at) DESC, id
-     LIMIT 500`,
-  );
-  const photos = await all<PhotoRow>(
-    env.DB,
-    `SELECT p.property_id, p.storage_key, p.width, p.height, p.alt FROM property_photos p
-     JOIN inventory_items i ON i.id = p.property_id WHERE i.published = 1 ORDER BY p.property_id, p.sort_order, p.created_at`,
-  );
-  const photosByListing = new Map<string, PhotoRow[]>();
-  for (const photo of photos) photosByListing.set(photo.property_id, [...(photosByListing.get(photo.property_id) ?? []), photo]);
+  const shown = `published = 1 ${settings.show_sold ? "" : "AND status = 'available'"}`;
+  const [rows, photos] = await env.DB.batch([
+    env.DB.prepare(
+      `SELECT id, slug, project_slug, web_title, web_summary, web_description, web_price, show_number, web_features, featured,
+              published_at, updated_at, created_at, type, status, size, block, house_number
+       FROM inventory_items WHERE ${shown}
+       ORDER BY web_order, project_slug, id
+       LIMIT 500`,
+    ),
+    env.DB.prepare(
+      `SELECT property_id, storage_key, width, height, alt FROM property_photos
+       WHERE property_id IN (SELECT id FROM inventory_items WHERE ${shown}) ORDER BY property_id, sort_order, created_at`,
+    ),
+  ]);
+  const photosByProperty = Map.groupBy(photos!.results as PhotoRow[], (photo) => photo.property_id);
   const projectName = new Map<string, string>(WEBSITE_PROJECTS.map((p) => [p.slug, p.name]));
   const site = env.PUBLIC_SITE_URL.replace(/\/$/, "");
 
@@ -56,7 +54,7 @@ async function publishedListings(env: Env) {
       project: { enabled: settings.project_enabled, heading: settings.project_heading },
     },
     projects: WEBSITE_PROJECTS.map(({ slug, name }) => ({ slug, name })),
-    listings: rows.map((row) => ({
+    listings: (rows!.results as PublicRow[]).map((row) => ({
       id: row.id,
       slug: row.slug,
       url: `${site}/properties/${row.slug}/`,
@@ -76,10 +74,10 @@ async function publishedListings(env: Env) {
       featured: Boolean(row.featured),
       published_at: row.published_at,
       updated_at: row.updated_at ?? row.created_at,
-      photos: (photosByListing.get(row.id) ?? []).map((p) => ({ ...photoUrls(env, p.storage_key), width: p.width, height: p.height, alt: p.alt })),
+      photos: (photosByProperty.get(row.id) ?? []).map((p) => ({ ...photoUrls(env, p.storage_key), width: p.width, height: p.height, alt: p.alt })),
     })),
   };
 }
 
-// Read by the landing build, which renders every listing section and page statically.
-export const publicRoutes = new Hono<WorkerEnv>().get("/listings/full", async (c) => c.json(await publishedListings(c.env)));
+// Read by the landing build, which renders every property section and page statically.
+export const publicRoutes = new Hono<WorkerEnv>().get("/listings/full", async (c) => c.json(await publishedProperties(c.env)));

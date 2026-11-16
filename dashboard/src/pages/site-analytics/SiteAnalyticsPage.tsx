@@ -2,21 +2,21 @@ import React from "react";
 import { Link } from "react-router-dom";
 import { ExternalLink } from "lucide-react";
 import type { InferResponseType } from "hono/client";
-import { CHANNEL_LABELS, ENQUIRY_LABELS, type Channel } from "@worker/site-analytics/fields";
+import { CHANNEL_LABELS, ENQUIRY_KINDS, ENQUIRY_LABELS } from "@worker/site-analytics/fields";
 import { crm, unwrap } from "@/lib/api";
 import { formatDate, formatNumber, formatPercent } from "@/lib/format";
-import { QueryView, Spinner, useQuery, useSearchState } from "@/lib/hooks";
-import { Select } from "@/ui/form";
+import { QueryView, Spinner, useQuery } from "@/lib/hooks";
 import { Card, EmptyState, PageHeader } from "@/ui/layout";
 import { Table, Td, Th, Tr } from "@/ui/table";
 import { cn } from "@/ui/cn";
+import { DeltaTile, PeriodSelect, percentChange, pointsChange, usePeriod } from "../analytics-shared";
 
 const TrafficChart = React.lazy(() => import("./TrafficChart"));
 
 type Report = InferResponseType<(typeof crm)["site-analytics"]["$get"], 200>;
 type Breakdown = Report["sources"][number];
 type Days = "7" | "28" | "90" | "365";
-const PERIODS: { value: Days; label: string }[] = [
+const PERIODS: readonly { value: Days; label: string }[] = [
   { value: "7", label: "Last 7 days" },
   { value: "28", label: "Last 28 days" },
   { value: "90", label: "Last 3 months" },
@@ -35,8 +35,7 @@ const countryName = (code: string | null) => {
 const rate = (part: number, whole: number) => (whole ? part / whole : null);
 
 export function SiteAnalyticsPage() {
-  const [params, setParams] = useSearchState<"days">();
-  const days = (PERIODS.some((p) => p.value === params.days) ? params.days : "28") as Days;
+  const [days, setDays] = usePeriod(PERIODS);
   const report = useQuery(() => unwrap(crm["site-analytics"].$get({ query: { days } })), days);
   const website = useQuery(() => unwrap(crm.website.$get()));
   const site = website.status === "ready" ? website.data.site_url.replace(/\/$/, "") : "";
@@ -45,8 +44,8 @@ export function SiteAnalyticsPage() {
     <>
       <PageHeader
         title="Site analytics"
-        lede="Visits and enquiries on bestbuilderdeveloper.com. Visitors are counted without cookies; a person is counted once per day."
-        actions={<Select aria-label="Period" value={days} options={PERIODS} onChange={(e) => setParams({ days: e.target.value })} className="w-44" />}
+        lede="Visits and enquiries on bestbuilderdeveloper.com, counted without cookies. A visit is one browser session."
+        actions={<PeriodSelect periods={PERIODS} value={days} onChange={setDays} />}
       />
       <QueryView query={report}>{(data) => <ReportBody data={data} site={site} />}</QueryView>
     </>
@@ -67,15 +66,13 @@ function ReportBody({ data, site }: { data: Report; site: string }) {
         {formatDate(`${data.range.start}T12:00:00Z`)} – {formatDate(`${data.range.end}T12:00:00Z`)} · PKT, compared with the previous {data.daily.length} days
       </p>
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Tile label="Visitors" value={formatNumber(t.visitors)} now={t.visitors} before={p.visitors} />
-        <Tile label="Pageviews" value={formatNumber(t.pageviews)} now={t.pageviews} before={p.pageviews} />
-        <Tile label="Enquiries" value={formatNumber(t.enquiries)} now={t.enquiries} before={p.enquiries} hint="WhatsApp, calls and lead forms" />
-        <Tile
+        <DeltaTile label="Visits" value={formatNumber(t.visits)} delta={percentChange(t.visits, p.visits)} />
+        <DeltaTile label="Pageviews" value={formatNumber(t.pageviews)} delta={percentChange(t.pageviews, p.pageviews)} />
+        <DeltaTile label="Enquiries" value={formatNumber(t.enquiries)} delta={percentChange(t.enquiries, p.enquiries)} hint="WhatsApp, calls and lead forms" />
+        <DeltaTile
           label="Conversion rate"
-          value={formatPercent(rate(t.converting_sessions, t.sessions), 1)}
-          now={rate(t.converting_sessions, t.sessions)}
-          before={rate(p.converting_sessions, p.sessions)}
-          points
+          value={formatPercent(rate(t.converting_visits, t.visits), 1)}
+          delta={pointsChange(rate(t.converting_visits, t.visits), rate(p.converting_visits, p.visits))}
           hint="Visits that sent an enquiry"
         />
       </div>
@@ -88,7 +85,7 @@ function ReportBody({ data, site }: { data: Report; site: string }) {
         </Card>
         <Card title="Enquiries">
           <BarList
-            rows={(["whatsapp", "call", "form"] as const).map((kind) => ({ label: ENQUIRY_LABELS[kind], value: data.enquiries.find((e) => e.kind === kind)?.count ?? 0 }))}
+            rows={ENQUIRY_KINDS.map((kind) => ({ label: ENQUIRY_LABELS[kind], value: data.enquiries.find((e) => e.kind === kind)?.count ?? 0 }))}
           />
         </Card>
       </div>
@@ -102,21 +99,21 @@ function ReportBody({ data, site }: { data: Report; site: string }) {
               <tr>
                 <Th>Page</Th>
                 <Th className="text-right">Views</Th>
-                <Th className="text-right">Visitors</Th>
+                <Th className="text-right">Visits</Th>
                 <Th className="text-right">Enquiries</Th>
               </tr>
             </thead>
             <tbody>
               {data.pages.map((page) => (
-                <Tr key={page.path}>
+                <Tr key={page.key}>
                   <Td className="max-w-[16rem]">
-                    <a href={`${site}${page.path}`} target="_blank" rel="noopener" className="inline-flex max-w-full items-center gap-1 hover:underline">
-                      <span className="truncate">{page.path}</span>
+                    <a href={`${site}${page.key}`} target="_blank" rel="noopener" className="inline-flex max-w-full items-center gap-1 hover:underline">
+                      <span className="truncate">{page.key}</span>
                       <ExternalLink className="h-3 w-3 shrink-0 text-muted-foreground" />
                     </a>
                   </Td>
                   <Td className="text-right tabular-nums">{formatNumber(page.pageviews)}</Td>
-                  <Td className="text-right tabular-nums">{formatNumber(page.visitors)}</Td>
+                  <Td className="text-right tabular-nums">{formatNumber(page.visits)}</Td>
                   <Td className="text-right tabular-nums">{formatNumber(page.enquiries)}</Td>
                 </Tr>
               ))}
@@ -132,26 +129,22 @@ function ReportBody({ data, site }: { data: Report; site: string }) {
               <thead>
                 <tr>
                   <Th>Property</Th>
-                  <Th className="text-right">Views</Th>
+                  <Th className="text-right">Visits</Th>
                   <Th className="text-right">Enquiries</Th>
                   <Th className="text-right">Conversion</Th>
                 </tr>
               </thead>
               <tbody>
                 {data.properties.map((row) => (
-                  <Tr key={row.slug}>
+                  <Tr key={row.key}>
                     <Td className="max-w-[16rem]">
-                      {row.property_id ? (
-                        <Link to={`/inventory/${row.property_id}?tab=website`} className="block truncate hover:underline">
-                          {row.title ?? row.slug}
-                        </Link>
-                      ) : (
-                        <span className="block truncate text-muted-foreground">{row.title ?? row.slug}</span>
-                      )}
+                      <Link to={`/inventory/${row.key}?tab=website`} className="block truncate hover:underline">
+                        {row.title}
+                      </Link>
                     </Td>
-                    <Td className="text-right tabular-nums">{formatNumber(row.pageviews)}</Td>
+                    <Td className="text-right tabular-nums">{formatNumber(row.visits)}</Td>
                     <Td className="text-right tabular-nums">{formatNumber(row.enquiries)}</Td>
-                    <Td className="text-right tabular-nums">{formatPercent(rate(row.enquiries, row.pageviews), 1)}</Td>
+                    <Td className="text-right tabular-nums">{formatPercent(rate(row.converting_visits, row.visits), 1)}</Td>
                   </Tr>
                 ))}
               </tbody>
@@ -162,39 +155,20 @@ function ReportBody({ data, site }: { data: Report; site: string }) {
 
       <div className="grid gap-4 md:grid-cols-2">
         <Card title="Countries">
-          <BarList rows={data.countries.map((c) => ({ label: countryName(c.key), value: c.sessions }))} />
+          <BarList rows={data.countries.map((c) => ({ label: countryName(c.key), value: c.visits }))} />
         </Card>
         <Card title="Devices">
-          <BarList rows={data.devices.map((d) => ({ label: d.key ? d.key.charAt(0).toUpperCase() + d.key.slice(1) : "Unknown", value: d.sessions }))} />
+          <BarList rows={data.devices.map((d) => ({ label: d.key ? d.key.charAt(0).toUpperCase() + d.key.slice(1) : "Unknown", value: d.visits }))} />
         </Card>
-      </div>
-    </div>
-  );
-}
-
-function Tile({ label, value, now, before, hint, points }: { label: string; value: string; now: number | null; before: number | null; hint?: string; points?: boolean }) {
-  let delta: { text: string; good: boolean } | null = null;
-  if (now != null && before != null) {
-    if (points) delta = { text: `${now >= before ? "+" : ""}${((now - before) * 100).toFixed(1)} pts`, good: now >= before };
-    else if (before > 0) delta = { text: `${now >= before ? "+" : ""}${Math.round(((now - before) / before) * 100)}%`, good: now >= before };
-    else if (now > 0) delta = { text: "New", good: true };
-  }
-  return (
-    <div className="rounded-lg border border-border bg-card p-4">
-      <div className="label-caps">{label}</div>
-      <div className="mt-1.5 text-2xl font-semibold tabular-nums">{value}</div>
-      <div className="mt-1 flex flex-wrap items-center gap-x-2 text-xs">
-        {delta && <span className={cn("font-medium", delta.good ? "text-success" : "text-destructive")}>{delta.text}</span>}
-        <span className="text-muted-foreground">{delta ? "vs previous period" : hint}</span>
       </div>
     </div>
   );
 }
 
 const TABS = [
-  { value: "channels", label: "Channels" },
-  { value: "sources", label: "Sources" },
-  { value: "campaigns", label: "Campaigns" },
+  { value: "channels", label: "Channels", column: "Channel" },
+  { value: "sources", label: "Sources", column: "Source" },
+  { value: "campaigns", label: "Campaigns", column: "Campaign" },
 ] as const;
 
 function SourcesCard({ data }: { data: Report }) {
@@ -202,11 +176,11 @@ function SourcesCard({ data }: { data: Report }) {
   const tabs = TABS.filter((t) => t.value !== "campaigns" || data.campaigns.length > 0);
   const rows: { label: string; row: Breakdown }[] =
     tab === "channels"
-      ? data.channels.map((row) => ({ label: CHANNEL_LABELS[row.key as Channel] ?? row.key ?? "Unknown", row }))
+      ? data.channels.map((row) => ({ label: CHANNEL_LABELS[row.key], row }))
       : tab === "sources"
         ? data.sources.map((row) => ({ label: row.key ?? "Direct / none", row }))
         : data.campaigns.map((row) => ({ label: row.key ?? "", row }));
-  const max = Math.max(1, ...rows.map((r) => r.row.sessions));
+  const max = Math.max(1, ...rows.map((r) => r.row.visits));
 
   return (
     <Card
@@ -231,7 +205,7 @@ function SourcesCard({ data }: { data: Report }) {
       <Table className="rounded-none border-0">
         <thead>
           <tr>
-            <Th>{TABS.find((t) => t.value === tab)!.label.slice(0, -1)}</Th>
+            <Th>{TABS.find((t) => t.value === tab)!.column}</Th>
             <Th>Visits</Th>
             <Th className="text-right">Enquiries</Th>
             <Th className="text-right">Conversion</Th>
@@ -244,13 +218,13 @@ function SourcesCard({ data }: { data: Report }) {
               <Td className="min-w-[8rem]">
                 <div className="flex items-center gap-2">
                   <div className="h-2 flex-1 rounded-full bg-muted">
-                    <div className="h-2 rounded-full bg-primary" style={{ width: `${(row.sessions / max) * 100}%` }} />
+                    <div className="h-2 rounded-full bg-primary" style={{ width: `${(row.visits / max) * 100}%` }} />
                   </div>
-                  <span className="w-10 text-right tabular-nums">{formatNumber(row.sessions)}</span>
+                  <span className="w-10 text-right tabular-nums">{formatNumber(row.visits)}</span>
                 </div>
               </Td>
               <Td className="text-right tabular-nums">{formatNumber(row.enquiries)}</Td>
-              <Td className="text-right tabular-nums">{formatPercent(rate(row.converting_sessions, row.sessions), 1)}</Td>
+              <Td className="text-right tabular-nums">{formatPercent(rate(row.converting_visits, row.visits), 1)}</Td>
             </Tr>
           ))}
         </tbody>

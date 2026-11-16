@@ -21,7 +21,7 @@
   }
 
   // Only the production site reports; previews and local builds stay out of the numbers.
-  if (location.hostname === 'bestbuilderdeveloper.com') {
+  if (location.hostname === new URL(import.meta.env.SITE).hostname) {
     const session = stored('bbd_session', () => crypto.randomUUID());
     // The visit's source is where its first page came from, so later pages and enquiries keep it.
     const landing = stored<Landing>('bbd_landing', () => {

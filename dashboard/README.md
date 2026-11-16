@@ -61,7 +61,10 @@ The dashboard's deploy command is `pnpm run deploy`, which applies D1 migrations
 
 **Resources:**
 - D1 database `bbd`.
-- R2 bucket `bbd-media`, public at `media.bestbuilderdeveloper.com`.
+- R2 bucket `bbd-media`, public at `media.bestbuilderdeveloper.com`. Lifecycle rules live in `r2-lifecycle.json`; apply them with `wrangler r2 bucket lifecycle set bbd-media --file r2-lifecycle.json`.
+  - Incomplete multipart uploads are aborted after 1 day.
+  - Anything under `tmp/` expires after 1 day.
+  - Photos under `listings/` never expire. They are deleted with their photo, listing or property, and Standard storage is kept because every page view reads them.
 - Custom domain `crm.bestbuilderdeveloper.com`.
 - Crons: `30 2 * * *` syncs the last 5 days of Search Console data; `*/5 * * * *` starts a pending landing rebuild.
 - When this branch merges, set `LANDING_BRANCH` to `main` and point the Workers Builds trigger at `main`.

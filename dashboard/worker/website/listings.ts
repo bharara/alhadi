@@ -209,17 +209,23 @@ export const listingRoutes = new Hono<AuthedEnv>()
     const key = `listings/${listing.id}/${id}`;
     const meta = { httpMetadata: { contentType: "image/webp", cacheControl: "public, max-age=31536000, immutable" } };
     await Promise.all([env.PHOTOS.put(`${key}-1600.webp`, await full.arrayBuffer(), meta), env.PHOTOS.put(`${key}-600.webp`, await thumb.arrayBuffer(), meta)]);
-    const next = await first<{ n: number }>(env.DB, "SELECT COALESCE(MAX(sort_order), -1) + 1 AS n FROM listing_photos WHERE listing_id = ?", [listing.id]);
-    await stmt(env.DB, "INSERT INTO listing_photos (id, listing_id, storage_key, width, height, alt, sort_order, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)", [
-      id,
-      listing.id,
-      key,
-      Math.round(width),
-      Math.round(height),
-      alt,
-      next?.n ?? 0,
-      nowIso(),
-    ]).run();
+    try {
+      const next = await first<{ n: number }>(env.DB, "SELECT COALESCE(MAX(sort_order), -1) + 1 AS n FROM listing_photos WHERE listing_id = ?", [listing.id]);
+      await stmt(env.DB, "INSERT INTO listing_photos (id, listing_id, storage_key, width, height, alt, sort_order, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)", [
+        id,
+        listing.id,
+        key,
+        Math.round(width),
+        Math.round(height),
+        alt,
+        next?.n ?? 0,
+        nowIso(),
+      ]).run();
+    } catch (error) {
+      // Photos are never expired by lifecycle rules, so a failed insert must not leave files behind.
+      await env.PHOTOS.delete([`${key}-1600.webp`, `${key}-600.webp`]);
+      throw error;
+    }
     if (listing.published) c.executionCtx.waitUntil(requestSiteRebuild(env, c.req.url));
     return c.json({ photos: await photosOf(env, listing.id) }, 201);
   })

@@ -1,0 +1,219 @@
+---
+import { contact, listingsApi } from '../data/site';
+
+interface Props {
+  /** "home" shows items featured on the home page; "project" shows one project's items. */
+  mode: 'home' | 'project';
+  project?: { slug: string; fullName: string };
+}
+
+const { mode, project } = Astro.props;
+---
+
+<section
+  class:list={['listings', mode]}
+  data-listings
+  data-mode={mode}
+  data-project={project?.slug}
+  data-project-name={project?.fullName}
+  data-api={listingsApi}
+  data-whatsapp={contact.whatsapp}
+  aria-labelledby={`listings-title-${mode}`}
+  hidden
+>
+  <div class:list={['head', { wrap: mode === 'home' }]}>
+    {mode === 'home' && <span class="kicker">Inventory</span>}
+    <h2 id={`listings-title-${mode}`} data-heading></h2>
+    <p class="intro" data-intro hidden></p>
+  </div>
+  <div class:list={['grid', { wrap: mode === 'home' }]} data-grid></div>
+</section>
+
+<script>
+  type Item = {
+    id: string;
+    project_slug: string | null;
+    project_name: string | null;
+    title: string;
+    type_label: string;
+    size: string;
+    block: string | null;
+    number: string | null;
+    price: string | null;
+    details: string | null;
+    status: 'available' | 'sold';
+    featured: boolean;
+  };
+  type Payload = {
+    settings: { home: { enabled: boolean; heading: string; intro: string; limit: number }; project: { enabled: boolean; heading: string } };
+    items: Item[];
+  };
+
+  const el = <K extends keyof HTMLElementTagNameMap>(tag: K, className: string, text?: string) => {
+    const node = document.createElement(tag);
+    node.className = className;
+    if (text) node.textContent = text;
+    return node;
+  };
+
+  function card(item: Item, mode: string, whatsapp: string, projectName: string | undefined): HTMLElement {
+    const sold = item.status === 'sold';
+    const article = el('article', `lcard${sold ? ' sold' : ''}`);
+    const tags = [item.type_label, mode === 'home' ? item.project_name : null].filter(Boolean).join(' · ');
+    article.append(el('span', 'ltag', tags));
+    if (sold) article.append(el('span', 'lsold', 'Sold'));
+    article.append(el('h3', 'ltitle', item.title));
+    const facts = [item.size, item.block ? `Block ${item.block}` : null, item.number ? `No. ${item.number}` : null].filter(Boolean).join(' · ');
+    article.append(el('p', 'lfacts', facts));
+    if (item.details) article.append(el('p', 'ldetails', item.details));
+    article.append(el('p', 'lprice', item.price ?? 'Call for price'));
+    if (!sold) {
+      const where = [item.project_name ?? projectName, item.block ? `Block ${item.block}` : null, item.number ? `No. ${item.number}` : null].filter(Boolean).join(', ');
+      const message = `Assalam o Alaikum, I'm interested in the ${item.title}${where ? ` (${where})` : ''}. Is it still available?`;
+      const link = el('a', 'lcta', 'Ask on WhatsApp →') as HTMLAnchorElement;
+      link.href = `https://wa.me/${whatsapp}?text=${encodeURIComponent(message)}`;
+      link.target = '_blank';
+      link.rel = 'noopener';
+      article.append(link);
+    }
+    return article;
+  }
+
+  async function render(section: HTMLElement) {
+    const { mode = 'home', project, projectName, api = '', whatsapp = '' } = section.dataset;
+    const response = await fetch(`${api}/api/public/listings`);
+    if (!response.ok) return;
+    const { settings, items } = (await response.json()) as Payload;
+
+    const config = mode === 'home' ? settings.home : settings.project;
+    if (!config.enabled) return;
+    const chosen = mode === 'home' ? items.filter((i) => i.featured).slice(0, settings.home.limit) : items.filter((i) => i.project_slug === project);
+    if (!chosen.length) return;
+
+    section.querySelector('[data-heading]')!.textContent = config.heading;
+    const intro = section.querySelector<HTMLElement>('[data-intro]')!;
+    if (mode === 'home' && settings.home.intro) {
+      intro.textContent = settings.home.intro;
+      intro.hidden = false;
+    }
+    section.querySelector('[data-grid]')!.replaceChildren(...chosen.map((item) => card(item, mode, whatsapp, projectName)));
+    section.hidden = false;
+  }
+
+  for (const section of document.querySelectorAll<HTMLElement>('[data-listings]')) {
+    render(section).catch(() => {});
+  }
+</script>
+
+<style>
+  .listings.home {
+    padding: 120px 0;
+    border-top: 1px solid var(--line);
+    background: var(--bg-2);
+  }
+  .listings.project {
+    margin-top: 64px;
+  }
+  .head h2 {
+    font-size: clamp(36px, 4.4vw, 56px);
+    line-height: 0.95;
+    margin: 14px 0 18px;
+  }
+  .project .head h2 {
+    font-size: clamp(26px, 3vw, 36px);
+    margin: 0 0 22px;
+  }
+  .intro {
+    color: var(--mut);
+    font-size: 16px;
+    line-height: 1.7;
+    max-width: 620px;
+    margin-bottom: 36px;
+  }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+  }
+  .listings :global(.lcard) {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 26px 24px 24px;
+    background: var(--bg);
+  }
+  .listings :global(.lcard.sold) {
+    opacity: 0.55;
+  }
+  .listings :global(.ltag) {
+    font-size: 11px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--mut);
+  }
+  .listings :global(.lsold) {
+    position: absolute;
+    top: 22px;
+    right: 22px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    padding: 5px 9px;
+    border-radius: 3px;
+    border: 1px solid var(--line);
+    color: var(--mut);
+  }
+  .listings :global(.ltitle) {
+    font-size: 22px;
+    line-height: 1.15;
+    margin: 12px 0 8px;
+  }
+  .listings :global(.lfacts) {
+    color: #cfc8bb;
+    font-size: 14px;
+  }
+  .listings :global(.ldetails) {
+    color: var(--mut);
+    font-size: 14px;
+    line-height: 1.6;
+    margin-top: 10px;
+  }
+  .listings :global(.lprice) {
+    margin-top: auto;
+    padding-top: 18px;
+    font-family: var(--disp);
+    font-size: 20px;
+    background: var(--grad);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+  .listings :global(.lcta) {
+    margin-top: 14px;
+    color: var(--gold-2);
+    font-weight: 600;
+    font-size: 14px;
+  }
+  .listings :global(.lcta:hover) {
+    text-decoration: underline;
+  }
+
+  @media (max-width: 1000px) {
+    .grid {
+      grid-template-columns: 1fr 1fr;
+    }
+  }
+  @media (max-width: 900px) {
+    .listings.home {
+      padding: 72px 0;
+    }
+  }
+  @media (max-width: 560px) {
+    .grid {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>

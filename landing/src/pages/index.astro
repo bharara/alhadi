@@ -5,6 +5,7 @@ import Hero from '../components/Hero.astro';
 import StatsTicker from '../components/StatsTicker.astro';
 import ProjectPanel from '../components/ProjectPanel.astro';
 import Film from '../components/Film.astro';
+import Listings from '../components/Listings.astro';
 import Group from '../components/Group.astro';
 import Footer from '../components/Footer.astro';
 import logo from '../assets/logo.png';
@@ -26,6 +27,7 @@ const logoUrl = new URL((await getImage({ src: logo, width: 360, format: 'png' }
     <div id="projects">
       {projects.map((project, index) => <ProjectPanel project={project} index={index} />)}
     </div>
+    <Listings mode="home" />
     <Film />
     <Group companies={group} />
   </main>

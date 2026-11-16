@@ -5,6 +5,7 @@ import { AcceptInvitePage, LoginPage, SetPasswordPage } from "@/auth/AuthPages";
 import { api, SIGNED_OUT_EVENT, unwrap, type Me } from "@/lib/api";
 import { Spinner } from "@/lib/hooks";
 import { AnalyticsPage } from "@/pages/analytics/AnalyticsPage";
+import { SiteAnalyticsPage } from "@/pages/site-analytics/SiteAnalyticsPage";
 import { DashboardPage } from "@/pages/dashboard/DashboardPage";
 import { InventoryDetailPage } from "@/pages/inventory/InventoryDetailPage";
 import { InventoryPage } from "@/pages/inventory/InventoryPage";
@@ -13,7 +14,6 @@ import { ProspectsPage } from "@/pages/prospects/ProspectsPage";
 import { TouchesPage } from "@/pages/prospects/TouchesPage";
 import { TasksPage } from "@/pages/tasks/TasksPage";
 import { UsersPage } from "@/pages/users/UsersPage";
-import { ListingEditorPage } from "@/pages/website/ListingEditorPage";
 import { WebsitePage } from "@/pages/website/WebsitePage";
 import { SessionProvider } from "@/session";
 import { Shell } from "@/shell/Shell";
@@ -72,7 +72,8 @@ function Root() {
               <Route path="inventory" element={<InventoryPage />} />
               <Route path="inventory/:inventoryId" element={<InventoryDetailPage />} />
               <Route path="website" element={<WebsitePage />} />
-              <Route path="website/listings/:listingId" element={<ListingEditorPage />} />
+              <Route path="website/listings/*" element={<Navigate to="/inventory" replace />} />
+              <Route path="site-analytics" element={<SiteAnalyticsPage />} />
               <Route path="analytics" element={<AnalyticsPage />} />
               <Route path="users" element={auth.user.role === "admin" ? <UsersPage /> : <Navigate to="/" replace />} />
               <Route path="*" element={<Navigate to="/" replace />} />

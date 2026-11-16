@@ -1,74 +1,79 @@
 import React from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
-import { ExternalLink, Globe, Plus } from "lucide-react";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { ExternalLink } from "lucide-react";
 import { toast } from "sonner";
 import { crm, unwrap, type InventoryItem } from "@/lib/api";
 import { formatWhen } from "@/lib/format";
-import { QueryView, useAction, useQuery } from "@/lib/hooks";
+import { dataOr, QueryView, useAction, useQuery } from "@/lib/hooks";
 import { INVENTORY_TYPE_LABELS } from "@worker/inventory/fields";
 import { Button } from "@/ui/button";
-import { Badge, Card, ConfirmDialog, PageHeader } from "@/ui/layout";
+import { Badge, ConfirmDialog, PageHeader } from "@/ui/layout";
+import { cn } from "@/ui/cn";
 import { formFromItem, InventoryForm, payloadFromForm, type InventoryFormState } from "./InventoryForm";
+import { WebsiteTab } from "./WebsiteTab";
+
+const TABS = [
+  { value: "details", label: "Details" },
+  { value: "website", label: "Website" },
+] as const;
 
 export function InventoryDetailPage() {
   const { inventoryId = "" } = useParams();
   const query = useQuery(() => unwrap(crm.inventory[":id"].$get({ param: { id: inventoryId } })), inventoryId);
   const towns = useQuery(() => unwrap(crm.inventory.towns.$get()).then((r) => r.towns));
+  const website = useQuery(() => unwrap(crm.website.$get()));
+  const site = website.status === "ready" ? website.data.site_url.replace(/\/$/, "") : "";
   return (
     <QueryView query={query}>
-      {(item) => <InventoryDetail key={item.id} item={item} towns={towns.status === "ready" ? towns.data : []} onSaved={(next) => query.setData(() => next)} />}
+      {(item) => <PropertyDetail key={item.id} item={item} towns={dataOr(towns, [])} site={site} onChange={(next) => query.setData(() => next)} />}
     </QueryView>
   );
 }
 
-function InventoryDetail({ item, towns, onSaved }: { item: InventoryItem; towns: string[]; onSaved: (item: InventoryItem) => void }) {
+function PropertyDetail({ item, towns, site, onChange }: { item: InventoryItem; towns: string[]; site: string; onChange: (item: InventoryItem) => void }) {
   const navigate = useNavigate();
-  const [form, setForm] = React.useState<InventoryFormState>(() => formFromItem(item));
+  const [params, setParams] = useSearchParams();
+  const tab = params.get("tab") === "website" ? "website" : "details";
   const [confirmDelete, setConfirmDelete] = React.useState(false);
-  const save = useAction((body: InventoryFormState) => unwrap(crm.inventory[":id"].$patch({ param: { id: item.id }, json: payloadFromForm(body) })));
   const remove = useAction(() => unwrap(crm.inventory[":id"].$delete({ param: { id: item.id } })));
-  const dirty = JSON.stringify(form) !== JSON.stringify(formFromItem(item));
-
-  async function submit(event: React.FormEvent) {
-    event.preventDefault();
-    const next = await save.run(form);
-    if (next) {
-      onSaved(next);
-      setForm(formFromItem(next));
-      toast.success(next.listing?.published ? "Saved. The website listing updates shortly." : "Saved");
-    }
-  }
 
   async function onDelete() {
     if (await remove.run()) {
-      toast.success("Item removed");
+      toast.success("Property removed");
       navigate("/inventory");
     }
   }
 
   return (
-    <form onSubmit={submit}>
+    <>
       <PageHeader
         crumbs={<Link to="/inventory" className="hover:underline">Properties</Link>}
         title={`${item.house_number}${item.block ? `, Block ${item.block}` : ""}`}
         lede={`${INVENTORY_TYPE_LABELS[item.type]} in ${item.town}`}
         actions={
-          item.can_edit && (
-            <>
+          <>
+            {item.web.published && item.web.slug && site && (
+              <a
+                href={`${site}/properties/${item.web.slug}/`}
+                target="_blank"
+                rel="noopener"
+                className="inline-flex h-10 items-center gap-2 rounded-md border border-border bg-card px-4 text-sm hover:bg-muted"
+              >
+                <ExternalLink className="h-4 w-4" /> View on site
+              </a>
+            )}
+            {item.can_edit && (
               <Button variant="danger-outline" onClick={() => setConfirmDelete(true)}>
-                Remove item
+                Remove property
               </Button>
-              <Button type="submit" pending={save.pending} disabled={!dirty}>
-                Save changes
-              </Button>
-            </>
-          )
+            )}
+          </>
         }
       />
 
       {!item.can_edit && (
         <p className="mb-4 rounded-md border border-border bg-muted px-4 py-3 text-sm text-muted-foreground">
-          Only admins or {item.entered_by_username ?? "the person who added it"} can edit this item.
+          Only admins or {item.entered_by_username ?? "the person who added it"} can edit this property.
         </p>
       )}
 
@@ -77,7 +82,7 @@ function InventoryDetail({ item, towns, onSaved }: { item: InventoryItem; towns:
           <Badge tone={item.status === "available" ? "success" : "neutral"}>{item.status === "available" ? "Available" : "Sold"}</Badge>
         </Summary>
         <Summary label="Website">
-          {item.listing ? item.listing.published ? <Badge tone="gold">Published</Badge> : <Badge>Draft</Badge> : <span className="text-muted-foreground">Not listed</span>}
+          {item.web.published ? <Badge tone="gold">{item.web.featured ? "Published · featured" : "Published"}</Badge> : <span className="text-muted-foreground">Not on website</span>}
         </Summary>
         <Summary label="Entered by">{item.entered_by_username ?? "—"}</Summary>
         <Summary label="Contact">{item.contact_name}</Summary>
@@ -89,87 +94,65 @@ function InventoryDetail({ item, towns, onSaved }: { item: InventoryItem; towns:
         <Summary label="Updated">{formatWhen(item.updated_at ?? item.created_at)}</Summary>
       </dl>
 
-      <InventoryForm form={form} onChange={setForm} towns={towns} disabled={!item.can_edit} />
+      <div role="tablist" aria-label="Property sections" className="mb-4 flex gap-1 border-b border-border">
+        {TABS.map((t) => (
+          <button
+            key={t.value}
+            role="tab"
+            aria-selected={tab === t.value}
+            onClick={() => setParams(t.value === "details" ? {} : { tab: t.value }, { replace: true })}
+            className={cn(
+              "-mb-px min-h-11 border-b-2 px-4 text-sm font-medium",
+              tab === t.value ? "border-primary text-foreground" : "border-transparent text-muted-foreground hover:text-foreground",
+            )}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
 
-      <WebsiteListingCard item={item} />
+      {tab === "details" ? <DetailsTab item={item} towns={towns} onChange={onChange} /> : <WebsiteTab item={item} site={site} onChange={onChange} />}
 
       <ConfirmDialog
         open={confirmDelete}
-        title="Remove this item?"
-        body={item.listing ? "Its website listing and photos are removed too. This cannot be undone." : "This cannot be undone."}
-        confirmLabel="Remove item"
+        title="Remove this property?"
+        body={item.web.published ? "Its photos are removed and its page leaves the website after the next rebuild. This cannot be undone." : "Its photos are removed too. This cannot be undone."}
+        confirmLabel="Remove property"
         danger
         pending={remove.pending}
         onConfirm={onDelete}
         onClose={() => setConfirmDelete(false)}
       />
-    </form>
+    </>
   );
 }
 
-/** The property's public listing: the curated version of this item on bestbuilderdeveloper.com. */
-function WebsiteListingCard({ item }: { item: InventoryItem }) {
-  const navigate = useNavigate();
-  const website = useQuery(() => unwrap(crm.website.$get()));
-  const create = useAction(() => unwrap(crm.listings.$post({ json: { inventory_item_id: item.id } })));
-  const site = website.status === "ready" ? website.data.site_url.replace(/\/$/, "") : "";
-  const listing = item.listing;
+function DetailsTab({ item, towns, onChange }: { item: InventoryItem; towns: string[]; onChange: (item: InventoryItem) => void }) {
+  const [form, setForm] = React.useState<InventoryFormState>(() => formFromItem(item));
+  const save = useAction((body: InventoryFormState) => unwrap(crm.inventory[":id"].$patch({ param: { id: item.id }, json: payloadFromForm(body) })));
+  const dirty = JSON.stringify(form) !== JSON.stringify(formFromItem(item));
 
-  async function onCreate() {
-    const created = await create.run();
-    if (created) {
-      toast.success("Draft listing created");
-      navigate(`/website/listings/${created.id}`);
+  async function submit(event: React.FormEvent) {
+    event.preventDefault();
+    const next = await save.run(form);
+    if (next) {
+      onChange(next);
+      setForm(formFromItem(next));
+      toast.success(next.web.published ? "Saved. The website updates after the automatic rebuild." : "Saved");
     }
   }
 
   return (
-    <Card
-      className="mt-4"
-      title={
-        <span className="inline-flex items-center gap-2">
-          <Globe className="h-4 w-4" /> Website listing
-        </span>
-      }
-    >
-      {listing ? (
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div className="min-w-0">
-            <div className="flex items-center gap-2">
-              {listing.published ? <Badge tone="gold">Published</Badge> : <Badge>Draft</Badge>}
-              {item.status === "sold" && <Badge tone="danger">Sold</Badge>}
-            </div>
-            <p className="mt-1.5 truncate text-sm text-muted-foreground">/properties/{listing.slug}/</p>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {listing.published && site && (
-              <a
-                href={`${site}/properties/${listing.slug}/`}
-                target="_blank"
-                rel="noopener"
-                className="inline-flex h-10 items-center gap-2 rounded-md border border-border bg-card px-4 text-sm hover:bg-muted"
-              >
-                <ExternalLink className="h-4 w-4" /> View on site
-              </a>
-            )}
-            <Link to={`/website/listings/${listing.id}`} className="inline-flex h-10 items-center rounded-md bg-primary px-4 text-sm font-semibold text-primary-foreground hover:bg-primary-hover">
-              Edit listing
-            </Link>
-          </div>
-        </div>
-      ) : (
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <p className="text-sm text-muted-foreground">
-            Not on the website. A listing has its own title, price text, description and photos; owner details and internal notes stay private.
-          </p>
-          {item.can_edit && (
-            <Button variant="outline" pending={create.pending} onClick={onCreate}>
-              <Plus className="h-4 w-4" /> Create website listing
-            </Button>
-          )}
+    <form onSubmit={submit}>
+      <InventoryForm form={form} onChange={setForm} towns={towns} disabled={!item.can_edit} />
+      {item.can_edit && (
+        <div className="mt-4 flex justify-end">
+          <Button type="submit" pending={save.pending} disabled={!dirty}>
+            Save details
+          </Button>
         </div>
       )}
-    </Card>
+    </form>
   );
 }
 

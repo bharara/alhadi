@@ -1,0 +1,58 @@
+---
+// Cookieless site analytics: pageviews and enquiries go to the dashboard Worker at /a/e on this domain.
+---
+
+<script>
+  type Kind = 'pageview' | 'whatsapp' | 'call' | 'form';
+  type Landing = { referrer: string | null; utm: { source: string | null; medium: string | null; campaign: string | null } };
+
+  const ENDPOINT = '/a/e';
+
+  function stored<T>(key: string, create: () => T): T {
+    try {
+      const existing = sessionStorage.getItem(key);
+      if (existing) return JSON.parse(existing) as T;
+      const value = create();
+      sessionStorage.setItem(key, JSON.stringify(value));
+      return value;
+    } catch {
+      return create();
+    }
+  }
+
+  // Only the production site reports; previews and local builds stay out of the numbers.
+  if (location.hostname === 'bestbuilderdeveloper.com') {
+    const session = stored('bbd_session', () => crypto.randomUUID());
+    // The visit's source is where its first page came from, so later pages and enquiries keep it.
+    const landing = stored<Landing>('bbd_landing', () => {
+      const query = new URLSearchParams(location.search);
+      return {
+        referrer: document.referrer || null,
+        utm: { source: query.get('utm_source'), medium: query.get('utm_medium'), campaign: query.get('utm_campaign') },
+      };
+    });
+    const pageProperty = document.body.dataset.property ?? null;
+
+    const send = (kind: Kind, property: string | null = pageProperty) => {
+      const body = JSON.stringify({ kind, path: location.pathname, session, referrer: landing.referrer, utm: landing.utm, property, width: window.innerWidth });
+      if (!navigator.sendBeacon?.(ENDPOINT, new Blob([body], { type: 'text/plain' }))) {
+        void fetch(ENDPOINT, { method: 'POST', body, keepalive: true }).catch(() => {});
+      }
+    };
+
+    send('pageview');
+    document.addEventListener(
+      'click',
+      (event) => {
+        const link = (event.target as Element | null)?.closest?.('a[href]');
+        if (!link) return;
+        const href = link.getAttribute('href') ?? '';
+        const property = (link as HTMLElement).dataset.property ?? pageProperty;
+        if (/wa\.me|whatsapp\.com/.test(href)) send('whatsapp', property);
+        else if (href.startsWith('tel:')) send('call', property);
+      },
+      true,
+    );
+    document.addEventListener('submit', (event) => (event.target as HTMLElement).id === 'lead-form' && send('form'), true);
+  }
+</script>

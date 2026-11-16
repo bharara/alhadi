@@ -38,16 +38,16 @@ async function encode(bitmap: ImageBitmap, maxEdge: number, quality: number): Pr
   return { blob, width, height };
 }
 
-type Uploaded = InferResponseType<(typeof crm.listings)[":id"]["photos"]["$post"], 201>;
+type Uploaded = InferResponseType<(typeof crm.inventory)[":id"]["photos"]["$post"], 201>;
 
 // Multipart isn't modelled by the typed client, so this posts the form directly.
-export async function uploadPhoto(listingId: string, file: File): Promise<Uploaded["photos"]> {
+export async function uploadPhoto(propertyId: string, file: File): Promise<Uploaded["photos"]> {
   const { full, thumb } = await preparePhoto(file);
   const form = new FormData();
   form.append("full", new File([full.blob], "full.webp", { type: "image/webp" }));
   form.append("thumb", new File([thumb.blob], "thumb.webp", { type: "image/webp" }));
   form.append("width", String(full.width));
   form.append("height", String(full.height));
-  const response = fetch(`/api/crm/listings/${encodeURIComponent(listingId)}/photos`, { method: "POST", body: form, credentials: "include" });
+  const response = fetch(`/api/crm/inventory/${encodeURIComponent(propertyId)}/photos`, { method: "POST", body: form, credentials: "include" });
   return (await unwrap(response as Promise<Response & { json(): Promise<Uploaded> }>)).photos;
 }

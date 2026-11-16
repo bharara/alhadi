@@ -98,7 +98,7 @@ export function InventoryForm({
           <Field label="Size" required>
             <Input placeholder="e.g. 1 Kanal" value={form.size} disabled={disabled} onChange={(e) => set("size", e.target.value)} required />
           </Field>
-          <Field label="Asking price" className="sm:col-span-2" hint="Internal. The website listing has its own price text.">
+          <Field label="Asking price" className="sm:col-span-2" hint="Internal. The Website tab has its own price text.">
             <Input placeholder="e.g. PKR 2.4 Cr" value={form.asking_price} disabled={disabled} onChange={(e) => set("asking_price", e.target.value)} />
           </Field>
           <Field label="Details" className="sm:col-span-2" hint="Internal notes. Not shown on the website.">

@@ -1,0 +1,33 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "bbd-dashboard",
+  // Alhadi account. Never deploy this to Exprtec.
+  "account_id": "bc7bbdb0e3475207e1f89d1d96fcef69",
+  "main": "worker/index.ts",
+  "compatibility_date": "2026-06-24",
+  "compatibility_flags": ["global_fetch_strictly_public"],
+  "workers_dev": false,
+  "preview_urls": false,
+  "routes": [{ "pattern": "dashboard.bestbuilderdeveloper.com", "custom_domain": true }],
+  "assets": {
+    "directory": "dist",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api/*"]
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "bbd",
+      // Set from `wrangler d1 create bbd` (see README, go-live step 2).
+      "database_id": "00000000-0000-0000-0000-000000000000",
+      "migrations_dir": "migrations"
+    }
+  ],
+  "triggers": { "crons": ["30 2 * * *"] },
+  "vars": {
+    "APP_URL": "https://dashboard.bestbuilderdeveloper.com",
+    "PUBLIC_SITE_URL": "https://bestbuilderdeveloper.com",
+    "GSC_PROPERTY": "sc-domain:bestbuilderdeveloper.com"
+  },
+  "observability": { "enabled": true }
+}

@@ -1,0 +1,45 @@
+{
+  "name": "bbd-dashboard",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "pnpm build && wrangler dev --port 8787",
+    "dev:vite": "vite --port 5173",
+    "build": "vite build",
+    "typecheck": "tsc --noEmit",
+    "check": "pnpm typecheck && pnpm build",
+    "db:migrate:local": "wrangler d1 migrations apply DB --local",
+    "db:migrate:remote": "bash scripts/cf.sh wrangler d1 migrations apply DB --remote",
+    "create-admin": "node scripts/create-admin.mjs",
+    "deploy": "bash scripts/deploy.sh"
+  },
+  "dependencies": {
+    "@hono/zod-validator": "^0.9.1",
+    "clsx": "^2.1.1",
+    "hono": "^4.13.18",
+    "lucide-react": "^0.468.0",
+    "papaparse": "^5.7.1",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "react-router-dom": "^7.10.1",
+    "recharts": "^3.10.1",
+    "sonner": "^2.0.8",
+    "tailwind-merge": "^3.7.0",
+    "zod": "~4.4.3"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "4.20260702.1",
+    "@types/papaparse": "^5.5.2",
+    "@types/react": "^19.0.2",
+    "@types/react-dom": "^19.0.2",
+    "@vitejs/plugin-react": "^5.2.0",
+    "autoprefixer": "^10.4.20",
+    "postcss": "^8.4.49",
+    "tailwindcss": "^3.4.19",
+    "typescript": "^5.9.3",
+    "vite": "^7.3.8",
+    "wrangler": "4.158.0"
+  },
+  "packageManager": "pnpm@10.26.1"
+}

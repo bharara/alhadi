@@ -1,0 +1,127 @@
+---
+import { listingFacts, listingPath, photoSrcset, type Listing } from '../data/listings';
+
+interface Props {
+  listing: Listing;
+  /** Show the project name in the tag line (off on a project's own pages). */
+  showProject?: boolean;
+}
+
+const { listing: l, showProject = true } = Astro.props;
+const cover = l.photos[0];
+const tag = [l.type_label, showProject ? l.project_name : null].filter(Boolean).join(' · ');
+---
+
+<a class:list={['card', { sold: l.status === 'sold' }]} href={listingPath(l)} data-project={l.project_slug ?? ''} data-type={l.type}>
+  <div class="ph">
+    {
+      cover ? (
+        <img src={cover.thumb} srcset={photoSrcset(cover)} sizes="(max-width: 560px) 100vw, (max-width: 1000px) 50vw, 420px" alt={cover.alt ?? l.title} width={cover.width} height={cover.height} loading="lazy" decoding="async" />
+      ) : (
+        <span class="no-ph" aria-hidden="true">{l.size}</span>
+      )
+    }
+    {l.status === 'sold' && <span class="sold-b">Sold</span>}
+  </div>
+  <div class="body">
+    <span class="tag">{tag}</span>
+    <h3>{l.title}</h3>
+    <p class="facts">{listingFacts(l)}</p>
+    {l.summary && <p class="sum">{l.summary}</p>}
+    <p class="price">{l.price ?? 'Call for price'}</p>
+  </div>
+</a>
+
+<style>
+  .card {
+    display: flex;
+    flex-direction: column;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    overflow: hidden;
+    background: var(--bg);
+    transition: border-color 0.25s ease;
+  }
+  .card:hover {
+    border-color: rgba(243, 220, 174, 0.35);
+  }
+  .card.sold {
+    opacity: 0.6;
+  }
+  .ph {
+    position: relative;
+    aspect-ratio: 3 / 2;
+    background: var(--card);
+    overflow: hidden;
+  }
+  .ph img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transition: transform 0.8s ease;
+  }
+  .card:hover .ph img {
+    transform: scale(1.04);
+  }
+  .no-ph {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    font-family: var(--disp);
+    font-size: 30px;
+    text-transform: uppercase;
+    color: rgba(243, 220, 174, 0.25);
+  }
+  .sold-b {
+    position: absolute;
+    top: 14px;
+    left: 14px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    padding: 6px 10px;
+    border-radius: 3px;
+    background: rgba(7, 7, 7, 0.8);
+    border: 1px solid var(--line);
+    color: var(--txt);
+  }
+  .body {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    padding: 22px 22px 24px;
+  }
+  .tag {
+    font-size: 11px;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--mut);
+  }
+  h3 {
+    font-size: 21px;
+    line-height: 1.15;
+    margin: 10px 0 8px;
+  }
+  .facts {
+    color: #cfc8bb;
+    font-size: 14px;
+  }
+  .sum {
+    color: var(--mut);
+    font-size: 14px;
+    line-height: 1.6;
+    margin-top: 10px;
+  }
+  .price {
+    margin-top: auto;
+    padding-top: 16px;
+    font-family: var(--disp);
+    font-size: 19px;
+    background: var(--grad);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+</style>

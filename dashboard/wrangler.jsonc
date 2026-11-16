@@ -1,0 +1,39 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "bbd-dashboard",
+  // Alhadi account. Never deploy this to Exprtec.
+  "account_id": "bc7bbdb0e3475207e1f89d1d96fcef69",
+  "main": "worker/index.ts",
+  "compatibility_date": "2026-06-24",
+  "compatibility_flags": ["global_fetch_strictly_public"],
+  "workers_dev": false,
+  "preview_urls": false,
+  "routes": [{ "pattern": "crm.bestbuilderdeveloper.com", "custom_domain": true }],
+  "assets": {
+    "directory": "dist",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api/*"]
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "bbd",
+      // The bbd database in the Alhadi account.
+      "database_id": "c5bbffd8-f1a9-4304-bc7d-c45eab419af4",
+      "migrations_dir": "migrations"
+    }
+  ],
+  // Daily Search Console sync; every 5 minutes, start a landing build if listings changed.
+  "triggers": { "crons": ["30 2 * * *", "*/5 * * * *"] },
+  "r2_buckets": [{ "binding": "PHOTOS", "bucket_name": "bbd-media" }],
+  "vars": {
+    "APP_URL": "https://crm.bestbuilderdeveloper.com",
+    "PUBLIC_SITE_URL": "https://bestbuilderdeveloper.com",
+    "MEDIA_URL": "https://media.bestbuilderdeveloper.com",
+    "GSC_PROPERTY": "sc-domain:bestbuilderdeveloper.com",
+    "CF_ACCOUNT_ID": "bc7bbdb0e3475207e1f89d1d96fcef69",
+    "LANDING_PROJECT": "best-builders-developers",
+    "LANDING_BRANCH": "main"
+  },
+  "observability": { "enabled": true }
+}

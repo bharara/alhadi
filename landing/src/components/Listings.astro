@@ -1,0 +1,90 @@
+---
+import ListingCard from './ListingCard.astro';
+import { listings, settings } from '../data/listings';
+
+interface Props {
+  /** "home" shows listings featured on the home page; "project" shows one project's listings. */
+  mode: 'home' | 'project';
+  projectSlug?: string;
+}
+
+const { mode, projectSlug } = Astro.props;
+const config = mode === 'home' ? settings.home : settings.project;
+const shown =
+  mode === 'home' ? listings.filter((l) => l.featured).slice(0, settings.home.limit) : listings.filter((l) => l.project_slug === projectSlug);
+---
+
+{
+  config.enabled && shown.length > 0 && (
+    <section class:list={['listings', mode]} aria-labelledby={`listings-title-${mode}`}>
+      <div class:list={['head', { wrap: mode === 'home' }]}>
+        {mode === 'home' && <span class="kicker">Inventory</span>}
+        <h2 id={`listings-title-${mode}`}>{config.heading}</h2>
+        {mode === 'home' && settings.home.intro && <p class="intro">{settings.home.intro}</p>}
+      </div>
+      <div class:list={['grid', { wrap: mode === 'home' }]}>
+        {shown.map((listing) => (
+          <ListingCard listing={listing} showProject={mode === 'home'} />
+        ))}
+      </div>
+      {mode === 'home' && (
+        <div class="wrap more">
+          <a class="btn btn-outline" href="/properties/">
+            See all properties →
+          </a>
+        </div>
+      )}
+    </section>
+  )
+}
+
+<style>
+  .listings.home {
+    padding: 120px 0;
+    border-top: 1px solid var(--line);
+    background: var(--bg-2);
+  }
+  .listings.project {
+    margin-top: 64px;
+  }
+  .head h2 {
+    font-size: clamp(36px, 4.4vw, 56px);
+    line-height: 0.95;
+    margin: 14px 0 18px;
+  }
+  .project .head h2 {
+    font-size: clamp(26px, 3vw, 36px);
+    margin: 0 0 22px;
+  }
+  .intro {
+    color: var(--mut);
+    font-size: 16px;
+    line-height: 1.7;
+    max-width: 620px;
+    margin-bottom: 36px;
+  }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+  }
+  .more {
+    margin-top: 36px;
+  }
+
+  @media (max-width: 1000px) {
+    .grid {
+      grid-template-columns: 1fr 1fr;
+    }
+  }
+  @media (max-width: 900px) {
+    .listings.home {
+      padding: 72px 0;
+    }
+  }
+  @media (max-width: 560px) {
+    .grid {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>

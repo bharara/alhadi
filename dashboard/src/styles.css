@@ -1,0 +1,39 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Best Builders: navy ink on cool paper, gold for action. */
+:root {
+  --background: 225 33% 98%;
+  --foreground: 216 60% 10%;
+  --card: 0 0% 100%;
+  --border: 220 27% 91%;
+  --muted: 220 30% 95%;
+  --muted-foreground: 218 14% 44%;
+  --primary: 41 87% 55%;
+  --primary-foreground: 32 100% 6%;
+  --primary-hover: 41 87% 49%;
+  --primary-muted: 43 90% 94%;
+  --sidebar: 219 40% 10%;
+  --sidebar-foreground: 220 20% 82%;
+  --success: 101 84% 30%;
+  --warning: 38 92% 42%;
+  --destructive: 354 82% 44%;
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+body {
+  @apply bg-background text-foreground antialiased;
+  font-size: 0.875rem;
+}
+
+@layer components {
+  .label-caps {
+    @apply text-[11px] font-semibold uppercase tracking-wider text-muted-foreground;
+  }
+}

@@ -1,5 +1,5 @@
 import React from "react";
-import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
+import { createBrowserRouter, Navigate, Route, RouterProvider, Routes } from "react-router-dom";
 import { Toaster } from "sonner";
 import { AcceptInvitePage, LoginPage } from "@/auth/AuthPages";
 import { api, SIGNED_OUT_EVENT, unwrap, type Me } from "@/lib/api";
@@ -20,7 +20,14 @@ import { Shell } from "@/shell/Shell";
 
 type Auth = { status: "loading" } | { status: "signed-out" } | { status: "signed-in"; user: Me };
 
+// A data router so pages can block navigation (useBlocker); the routes themselves depend on auth below.
+const router = createBrowserRouter([{ path: "*", element: <Root /> }]);
+
 export function App() {
+  return <RouterProvider router={router} />;
+}
+
+function Root() {
   const [auth, setAuth] = React.useState<Auth>({ status: "loading" });
 
   const load = React.useCallback(() => {
@@ -42,7 +49,7 @@ export function App() {
   }, []);
 
   return (
-    <BrowserRouter>
+    <>
       <Toaster richColors position="top-right" />
       {auth.status === "loading" && <Spinner className="py-32" />}
       {auth.status === "signed-out" && (
@@ -71,6 +78,6 @@ export function App() {
           </Routes>
         </SessionProvider>
       )}
-    </BrowserRouter>
+    </>
   );
 }

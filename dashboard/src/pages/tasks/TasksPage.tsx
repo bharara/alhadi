@@ -1,5 +1,5 @@
 import React from "react";
-import { Link } from "react-router-dom";
+import { Link, useBlocker } from "react-router-dom";
 import { ChevronLeft, ChevronRight, ExternalLink, Pencil } from "lucide-react";
 import { toast } from "sonner";
 import { crm, fetchUsers, unwrap, type Prospect, type Touch } from "@/lib/api";
@@ -42,6 +42,16 @@ export function TasksPage() {
     window.addEventListener("beforeunload", warn);
     return () => window.removeEventListener("beforeunload", warn);
   }, []);
+
+  // In-app navigation away from Tasks (sidebar, back button) asks too.
+  const blocker = useBlocker(({ currentLocation, nextLocation }) => dirty.current && currentLocation.pathname !== nextLocation.pathname);
+  React.useEffect(() => {
+    if (blocker.state !== "blocked") return;
+    if (window.confirm(LEAVE_MESSAGE)) {
+      dirty.current = false;
+      blocker.proceed();
+    } else blocker.reset();
+  }, [blocker]);
 
   /** Runs `go` unless there are unsaved notes the user wants to keep. */
   const guard = (go: () => void) => {

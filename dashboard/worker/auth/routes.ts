@@ -5,6 +5,7 @@ import type { AuthedEnv, WorkerEnv } from "../env";
 import { ApiError } from "../http";
 import { zJson, zQuery } from "../validation";
 import { requireUser } from "./middleware";
+import { openPasswordLink } from "./password-links";
 import { hashPassword, verifyPassword } from "./password";
 import { endSession, startSession } from "./session";
 
@@ -60,6 +61,24 @@ export const authRoutes = new Hono<WorkerEnv>()
       db.prepare("UPDATE user_invites SET consumed_at = ?, updated_at = ? WHERE id = ?").bind(now, now, invite.id),
     ]);
     await startSession(c, id, c.env.SESSION_SECRET);
+    return c.json({ ok: true });
+  });
+
+export const passwordLinkRoutes = new Hono<WorkerEnv>()
+  .get("/", zQuery(z.object({ token: z.string().min(1) })), async (c) => {
+    const link = await openPasswordLink(c.env.DB, c.req.valid("query").token);
+    return c.json({ username: link.username, expires_at: link.expires_at });
+  })
+  .post("/accept", zJson(z.object({ token: z.string().min(1), password: z.string().min(8).max(255) })), async (c) => {
+    const { token, password } = c.req.valid("json");
+    const db = c.env.DB;
+    const link = await openPasswordLink(db, token);
+    const now = nowIso();
+    await db.batch([
+      db.prepare("UPDATE users SET password_hash = ?, updated_at = ? WHERE id = ?").bind(await hashPassword(password, c.env.PASSWORD_PEPPER), now, link.user_id),
+      db.prepare("UPDATE password_links SET consumed_at = ? WHERE user_id = ? AND consumed_at IS NULL").bind(now, link.user_id),
+    ]);
+    await startSession(c, link.user_id, c.env.SESSION_SECRET);
     return c.json({ ok: true });
   });
 

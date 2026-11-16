@@ -32,7 +32,8 @@ export function UsersPage() {
   const [pending, setPending] = React.useState<Pending>(null);
   const [passwordFor, setPasswordFor] = React.useState<ManagedUser | null>(null);
   const [inviting, setInviting] = React.useState(false);
-  const [created, setCreated] = React.useState<Invite | null>(null);
+  const [shared, setShared] = React.useState<SharedLink | null>(null);
+  const passwordLink = useAction((user: ManagedUser) => unwrap(admin.users[":id"]["password-link"].$post({ param: { id: user.id } })));
 
   const setRole = useAction((id: string, role: Role) => unwrap(admin.users[":id"].role.$put({ param: { id }, json: { role } })));
   const setActive = useAction((id: string, active: boolean) => unwrap(admin.users[":id"].active.$post({ param: { id }, json: { is_active: active } })));
@@ -77,7 +78,14 @@ export function UsersPage() {
       <div className="flex flex-col gap-6">
         <Card title="Users" bodyClassName="p-0">
           <QueryView query={users}>
-            {(list) => <UsersTable users={list} onRole={(user, role) => setPending({ kind: "role", user, role })} onActive={(user, active) => setPending({ kind: "active", user, active })} onPassword={setPasswordFor} />}
+            {(list) => (
+              <UsersTable users={list} onRole={(user, role) => setPending({ kind: "role", user, role })} onActive={(user, active) => setPending({ kind: "active", user, active })} onPassword={setPasswordFor}
+                onPasswordLink={async (user) => {
+                  const link = await passwordLink.run(user);
+                  if (link) setShared({ title: "Password link created", recipient: user.username, url: link.url, message: `Set your password for the Best Builders dashboard here (link expires in 7 days): ${link.url}` });
+                }}
+              />
+            )}
           </QueryView>
         </Card>
 
@@ -160,10 +168,10 @@ export function UsersPage() {
         onCreated={(invite) => {
           invites.setData((list) => [...list.filter((i) => i.email !== invite.email), invite]);
           setInviting(false);
-          setCreated(invite);
+          setShared({ title: "Invitation created", recipient: invite.email, url: invite.invite_url, message: `You're invited to the Best Builders dashboard. Set your password here (link expires in 7 days): ${invite.invite_url}` });
         }}
       />
-      <InviteLinkDialog invite={created} onClose={() => setCreated(null)} />
+      <ShareLinkDialog link={shared} onClose={() => setShared(null)} />
     </>
   );
 }
@@ -173,11 +181,13 @@ function UsersTable({
   onRole,
   onActive,
   onPassword,
+  onPasswordLink,
 }: {
   users: ManagedUser[];
   onRole: (user: ManagedUser, role: Role) => void;
   onActive: (user: ManagedUser, active: boolean) => void;
   onPassword: (user: ManagedUser) => void;
+  onPasswordLink: (user: ManagedUser) => void;
 }) {
   const { user: me } = useSession();
   return (
@@ -205,6 +215,9 @@ function UsersTable({
               <Td className="align-middle">{user.is_active ? <Badge tone="success">Active</Badge> : <Badge>Inactive</Badge>}</Td>
               <Td className="align-middle">
                 <div className="flex justify-end gap-2">
+                  <Button variant="outline" size="sm" disabled={!user.is_active} onClick={() => onPasswordLink(user)}>
+                    Password link
+                  </Button>
                   <Button variant="outline" size="sm" disabled={!user.is_active} onClick={() => onPassword(user)}>
                     Set password
                   </Button>
@@ -315,23 +328,22 @@ function InviteDialog({ open, onClose, onCreated }: { open: boolean; onClose: ()
   );
 }
 
-function InviteLinkDialog({ invite, onClose }: { invite: Invite | null; onClose: () => void }) {
-  const whatsapp = invite
-    ? `https://wa.me/?text=${encodeURIComponent(`You're invited to the Best Builders dashboard. Set your password here (link expires in 7 days): ${invite.invite_url}`)}`
-    : "";
+type SharedLink = { title: string; recipient: string; url: string; message: string };
+
+function ShareLinkDialog({ link, onClose }: { link: SharedLink | null; onClose: () => void }) {
   return (
-    <Dialog open={invite !== null} onClose={onClose} title="Invitation created" footer={<Button onClick={onClose}>Done</Button>}>
-      {invite && (
+    <Dialog open={link !== null} onClose={onClose} title={link?.title ?? ""} footer={<Button onClick={onClose}>Done</Button>}>
+      {link && (
         <div className="flex flex-col gap-4 text-sm">
           <p>
-            No email is sent. Share this link with <b>{invite.email}</b>. It expires in 7 days and works once.
+            No email is sent. Share this link with <b>{link.recipient}</b>. It expires in 7 days and works once.
           </p>
-          <Input readOnly value={invite.invite_url} onFocus={(e) => e.target.select()} aria-label="Invitation link" />
+          <Input readOnly value={link.url} onFocus={(e) => e.target.select()} aria-label="Link" />
           <div className="flex flex-wrap gap-2">
-            <Button variant="outline" onClick={() => copyLink(invite.invite_url)}>
+            <Button variant="outline" onClick={() => copyLink(link.url)}>
               <Copy className="h-4 w-4" /> Copy link
             </Button>
-            <a href={whatsapp} target="_blank" rel="noopener" className="inline-flex h-10 items-center gap-2 rounded-md border border-border px-4 hover:bg-muted">
+            <a href={`https://wa.me/?text=${encodeURIComponent(link.message)}`} target="_blank" rel="noopener" className="inline-flex h-10 items-center gap-2 rounded-md border border-border px-4 hover:bg-muted">
               <MessageCircle className="h-4 w-4" /> Share on WhatsApp
             </a>
           </div>

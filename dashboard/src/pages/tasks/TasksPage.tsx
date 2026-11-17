@@ -103,7 +103,9 @@ export function TasksPage() {
                 count={prospects.length}
                 tagSuggestions={tags.status === "ready" ? tags.data.tags : []}
                 refreshing={tasks.status === "ready" && tasks.refreshing}
-                onDirtyChange={(value) => (dirty.current = value)}
+                onDirtyChange={(value) => {
+                  dirty.current = value;
+                }}
                 guard={guard}
                 onMove={(step) => guard(() => setIndex(Math.min(Math.max(0, position + step), prospects.length - 1)))}
                 onSaved={(saved) => tasks.setData((d) => d && { ...d, prospects: d.prospects.map((p) => (p.id === saved.id ? saved : p)) })}
@@ -255,7 +257,9 @@ function NotesPanel({
   if (form.notes !== initial.notes) changes.notes = form.notes.trim() || null;
   const dirty = Object.keys(changes).length > 0;
 
-  React.useEffect(() => onDirtyChange(dirty), [dirty, onDirtyChange]);
+  React.useEffect(() => {
+    onDirtyChange(dirty);
+  }, [dirty, onDirtyChange]);
   React.useEffect(() => () => onDirtyChange(false), [onDirtyChange]);
 
   const save = useAction(async () => {

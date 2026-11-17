@@ -26,7 +26,9 @@ export function Shell() {
   const { user, signOut } = useSession();
   const [open, setOpen] = React.useState(false);
   const location = useLocation();
-  React.useEffect(() => setOpen(false), [location.pathname]);
+  React.useEffect(() => {
+    setOpen(false);
+  }, [location.pathname]);
 
   const nav = (
     <nav className="flex flex-1 flex-col gap-6 overflow-y-auto px-3 py-4">

@@ -25,6 +25,9 @@ export function TasksPage() {
   const [index, setIndex] = React.useState(0);
   const [version, setVersion] = React.useState(0);
   const dirty = React.useRef(false);
+  const setDirty = React.useCallback((value: boolean) => {
+    dirty.current = value;
+  }, []);
 
   const userList = users.status === "ready" ? users.data : [];
   const userId = params.user && userList.some((u) => u.id === params.user) ? params.user : (userList.find((u) => u.id === user.id) ?? userList[0])?.id;
@@ -103,7 +106,7 @@ export function TasksPage() {
                 count={prospects.length}
                 tagSuggestions={tags.status === "ready" ? tags.data.tags : []}
                 refreshing={tasks.status === "ready" && tasks.refreshing}
-                onDirtyChange={(value) => (dirty.current = value)}
+                onDirtyChange={setDirty}
                 guard={guard}
                 onMove={(step) => guard(() => setIndex(Math.min(Math.max(0, position + step), prospects.length - 1)))}
                 onSaved={(saved) => tasks.setData((d) => d && { ...d, prospects: d.prospects.map((p) => (p.id === saved.id ? saved : p)) })}
@@ -255,7 +258,9 @@ function NotesPanel({
   if (form.notes !== initial.notes) changes.notes = form.notes.trim() || null;
   const dirty = Object.keys(changes).length > 0;
 
-  React.useEffect(() => onDirtyChange(dirty), [dirty, onDirtyChange]);
+  React.useEffect(() => {
+    onDirtyChange(dirty);
+  }, [dirty, onDirtyChange]);
   React.useEffect(() => () => onDirtyChange(false), [onDirtyChange]);
 
   const save = useAction(async () => {

@@ -85,7 +85,9 @@ export function ProspectFilters({
   const [draft, setDraft] = React.useState<Draft>(() => draftFrom(params));
   const [openOnMobile, setOpenOnMobile] = React.useState(false);
   const paramsKey = JSON.stringify(params);
-  React.useEffect(() => setDraft(draftFrom(params)), [paramsKey]); // eslint-disable-line react-hooks/exhaustive-deps
+  React.useEffect(() => {
+    setDraft(draftFrom(params));
+  }, [paramsKey]); // eslint-disable-line react-hooks/exhaustive-deps
   const set = <K extends keyof Draft>(key: K, value: Draft[K]) => setDraft((d) => ({ ...d, [key]: value }));
 
   const fieldOptions = [...BASE_FIELDS, ...extraFields.map((k) => `extra.${k}`)].map((value) => ({

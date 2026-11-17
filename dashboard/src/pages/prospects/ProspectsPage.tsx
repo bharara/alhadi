@@ -32,7 +32,9 @@ export function ProspectsPage() {
   const [selected, setSelected] = React.useState<Set<string>>(new Set());
   // A selection belongs to one set of filters; paging keeps it.
   const filterKey = JSON.stringify(body);
-  React.useEffect(() => setSelected(new Set()), [filterKey]);
+  React.useEffect(() => {
+    setSelected(new Set());
+  }, [filterKey]);
   // The dashboard's "+" menu links here with ?add=1 or ?import=1.
   const [dialog, setDialog] = React.useState<null | "add" | "import" | "bulk" | "delete">(() => {
     const search = new URLSearchParams(location.search);

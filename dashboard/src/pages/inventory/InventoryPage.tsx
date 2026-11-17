@@ -26,7 +26,9 @@ export function InventoryPage() {
   const [draft, setDraft] = React.useState(filters);
   const [adding, setAdding] = React.useState(false);
   const page = Math.max(1, Number(filters.page) || 1);
-  React.useEffect(() => setDraft(filters), [JSON.stringify(filters)]); // eslint-disable-line react-hooks/exhaustive-deps
+  React.useEffect(() => {
+    setDraft(filters);
+  }, [JSON.stringify(filters)]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const towns = useQuery(() => unwrap(crm.inventory.towns.$get()).then((r) => r.towns));
   const query = useQuery(

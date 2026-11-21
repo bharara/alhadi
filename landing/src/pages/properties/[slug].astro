@@ -9,7 +9,7 @@ import ListingCard from '../../components/ListingCard.astro';
 import Modal from '../../components/Modal.astro';
 import logo from '../../assets/logo.png';
 import { contact, enquiryOptions, projects, waLink } from '../../data/site';
-import { listingFacts, listingPath, listings, listingMessage, photoSrcset, type Listing } from '../../data/listings';
+import { listingFacts, listingPath, listings, listingMessage, photoSrcset, shareImage, type Listing } from '../../data/listings';
 import { orgId, organization } from '../../data/schema';
 
 export const getStaticPaths = (() => listings.map((listing) => ({ params: { slug: listing.slug }, props: { listing } }))) satisfies GetStaticPaths;
@@ -25,11 +25,6 @@ const project = projects.find((p) => p.slug === l.project_slug);
 const sold = l.status === 'sold';
 const [cover, ...rest] = l.photos;
 const logoUrl = new URL((await getImage({ src: logo, width: 360, format: 'png' })).src, site).href;
-// Share previews: WhatsApp and LinkedIn don't render WebP, so the cover becomes a same-origin 1.91:1 JPEG.
-// Sharp never enlarges, so the crop stays within the photo's own size.
-const shareWidth = cover && Math.min(1200, cover.width, Math.floor((cover.height * 1200) / 630));
-const shareSize = shareWidth ? { width: shareWidth, height: Math.round((shareWidth * 630) / 1200) } : undefined;
-const shareImage = cover && shareSize && (await getImage({ src: cover.full, ...shareSize, fit: 'cover', format: 'jpg', quality: 80 })).src;
 // Properties sit under their town (project page); ones without a town sit under the directory.
 const crumbs = [
   { name: 'Home', href: '/' },
@@ -84,8 +79,7 @@ const jsonLd = {
 <Base
   title={`${l.title}${l.project_name ? ` · ${l.project_name}` : ''} | Best Builders & Developers`}
   description={description}
-  image={shareImage}
-  imageSize={shareSize}
+  image={cover && (await shareImage(cover))}
   jsonLd={jsonLd}
   whatsappText={listingMessage(l, 'ask', url)}
   property={l.slug}

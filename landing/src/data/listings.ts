@@ -1,4 +1,5 @@
-import { listingsApi, projects } from './site';
+import { getImage } from 'astro:assets';
+import { listingsApi, projects, type ShareImage } from './site';
 
 export interface ListingPhoto {
   full: string;
@@ -76,6 +77,19 @@ export const listingPath = (l: Pick<Listing, 'slug'>) => `/properties/${l.slug}/
 export const listingFacts = (l: Listing) => [l.size, l.block ? `Block ${l.block}` : null, l.number ? `No. ${l.number}` : null].filter(Boolean).join(' · ');
 
 export const photoSrcset = (p: ListingPhoto) => `${p.thumb} 600w, ${p.full} 1600w`;
+
+const SHARE_WIDTH = 1200;
+const SHARE_HEIGHT = 630;
+
+/** A photo cropped to a same-origin 1.91:1 JPEG, since WhatsApp and LinkedIn previews don't render WebP. */
+export async function shareImage(photo: ListingPhoto): Promise<ShareImage> {
+  // Sharp never enlarges, so the crop stays within the photo.
+  const width = Math.min(SHARE_WIDTH, photo.width, Math.floor((photo.height * SHARE_WIDTH) / SHARE_HEIGHT));
+  const height = Math.round((width * SHARE_HEIGHT) / SHARE_WIDTH);
+  const { src } = await getImage({ src: photo.full, width, height, fit: 'cover', format: 'jpg', quality: 80 });
+  if (!src.startsWith('/_astro/')) throw new Error(`[listings] ${photo.full} wasn't converted; add its host to image.domains in astro.config.mjs`);
+  return { src, width, height };
+}
 
 /** WhatsApp message asking about, or to visit, a listing; names where it is and links its page. */
 export function listingMessage(l: Listing, intent: 'ask' | 'visit', pageUrl: string): string {

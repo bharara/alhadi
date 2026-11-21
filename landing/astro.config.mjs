@@ -6,6 +6,6 @@ export default defineConfig({
   output: 'static',
   trailingSlash: 'ignore',
   build: { inlineStylesheets: 'auto', format: 'directory' },
-  // Property photos live on the media bucket; the build turns each cover into a JPEG share image.
+  // Must match the dashboard's MEDIA_URL, or share images stay WebP (shareImage() fails the build).
   image: { domains: ['media.bestbuilderdeveloper.com'] },
 });

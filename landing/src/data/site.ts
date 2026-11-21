@@ -493,3 +493,10 @@ export const group: GroupCompany[] = [
   { name: 'Interiors', kicker: 'Build', blurb: 'Home construction & interior design', image: villaWide, current: false },
   { name: 'Homes', kicker: 'Furnish', blurb: 'Furniture, drapery & décor', image: interiorBed, current: false },
 ];
+
+/** A link-preview image: a root-relative path or absolute URL, with its pixel size. */
+export interface ShareImage {
+  src: string;
+  width: number;
+  height: number;
+}

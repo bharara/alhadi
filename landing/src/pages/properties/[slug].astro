@@ -9,7 +9,7 @@ import ListingCard from '../../components/ListingCard.astro';
 import Modal from '../../components/Modal.astro';
 import logo from '../../assets/logo.png';
 import { contact, enquiryOptions, projects, waLink } from '../../data/site';
-import { listingFacts, listingPath, listings, listingMessage, photoSrcset, type Listing } from '../../data/listings';
+import { listingFacts, listingPath, listings, listingMessage, photoSrcset, shareImage, type Listing } from '../../data/listings';
 import { orgId, organization } from '../../data/schema';
 
 export const getStaticPaths = (() => listings.map((listing) => ({ params: { slug: listing.slug }, props: { listing } }))) satisfies GetStaticPaths;
@@ -79,8 +79,7 @@ const jsonLd = {
 <Base
   title={`${l.title}${l.project_name ? ` · ${l.project_name}` : ''} | Best Builders & Developers`}
   description={description}
-  image={cover?.full}
-  imageSize={cover ? { width: cover.width, height: cover.height } : undefined}
+  image={cover && (await shareImage(cover))}
   jsonLd={jsonLd}
   whatsappText={listingMessage(l, 'ask', url)}
   property={l.slug}

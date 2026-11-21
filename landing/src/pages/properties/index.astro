@@ -4,7 +4,7 @@ import Nav from '../../components/Nav.astro';
 import Footer from '../../components/Footer.astro';
 import ListingCard from '../../components/ListingCard.astro';
 import { contact, waLink } from '../../data/site';
-import { listingPath, listings } from '../../data/listings';
+import { listingPath, listings, shareImage } from '../../data/listings';
 import { orgId } from '../../data/schema';
 
 const site = Astro.site!;
@@ -30,8 +30,7 @@ const askHref = waLink("Assalam o Alaikum, please share the plots and properties
 <Base
   title="Properties for Sale in Faisalabad | Best Builders & Developers"
   description="Plots and properties for sale in Sitara Villas, Abdullah Gardens and City Walk, Faisalabad. See photos, sizes and prices, then message us on WhatsApp."
-  image={listings[0]?.photos[0]?.full}
-  imageSize={listings[0]?.photos[0] ? { width: listings[0].photos[0].width, height: listings[0].photos[0].height } : undefined}
+  image={listings[0]?.photos[0] && (await shareImage(listings[0].photos[0]))}
   jsonLd={jsonLd}
 >
   <header class="wrap"><Nav /></header>

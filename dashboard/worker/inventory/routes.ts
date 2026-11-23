@@ -6,7 +6,7 @@ import { ApiError } from "../http";
 import { requestSiteRebuild } from "../site-build";
 import { idParam, optionalText, requiredText, zJson, zParam } from "../validation";
 import { CONTACT_KINDS, INVENTORY_STATUSES, INVENTORY_TYPES, WEBSITE_PROJECT_SLUGS } from "./fields";
-import { deletePhotos } from "./photo-storage";
+import { deletePhotos } from "../media/storage";
 import { photoRoutes } from "./photos";
 import { loadEditable, loadItem, SELECT, toItem, type ItemRow } from "./store";
 import { impliedWebColumns, webFields } from "./web";

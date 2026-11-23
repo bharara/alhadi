@@ -6,8 +6,7 @@ export const MAX_ROWS = 200;
 // Credentials and sign-in records. `team_members` is the safe view of users.
 const BLOCKED = /\b(users|user_invites|password_links|login_failures|password_hash|token)\b/i;
 
-// D1 has no read-only connection, so the query runs as a subquery: SQLite only accepts SELECT (or WITH … SELECT)
-// there, so INSERT/UPDATE/DELETE/DDL/PRAGMA statements fail to parse.
+// D1 has no read-only connection; as a subquery, only SELECT (or WITH … SELECT) parses.
 export async function runReadOnlySql(db: Db, query: string, params: (string | number | boolean | null)[]) {
   const body = query.trim().replace(/;\s*$/, "");
   if (body.includes(";")) throw new ApiError(422, "Send one statement, without semicolons");

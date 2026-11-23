@@ -4,7 +4,7 @@ import type { Element, HTMLRewriter as Rewriter } from "@cloudflare/workers-type
 declare const HTMLRewriter: typeof Rewriter;
 
 /** Tags the editor produces, each with the attributes it may keep. Anything else is unwrapped (its text kept). */
-const ALLOWED: Record<string, readonly string[]> = {
+export const ALLOWED: Record<string, readonly string[]> = {
   p: [],
   br: [],
   hr: [],
@@ -12,13 +12,9 @@ const ALLOWED: Record<string, readonly string[]> = {
   h3: [],
   h4: [],
   strong: [],
-  b: [],
   em: [],
-  i: [],
   u: [],
   s: [],
-  code: [],
-  pre: [],
   blockquote: [],
   ul: [],
   ol: ["start"],
@@ -27,15 +23,15 @@ const ALLOWED: Record<string, readonly string[]> = {
   img: ["src", "alt", "width", "height"],
 };
 
-/** Removed together with everything inside them. */
-const DROPPED = new Set(["script", "style", "iframe", "object", "embed", "svg", "math", "template", "noscript", "form", "input", "button", "select", "textarea", "head", "title", "link", "meta", "base"]);
+// Removed with their content. Raw-text elements must be here: the parser never shows their content as tags, so unwrapping one would emit it as live markup.
+const DROPPED = new Set([
+  "script", "style", "iframe", "noscript", "textarea", "title", "xmp", "noembed", "noframes", "plaintext",
+  "object", "embed", "svg", "math", "template", "form", "input", "button", "select", "head", "link", "meta", "base",
+]);
 
 const SAFE_HREF = /^(https?:\/\/|mailto:|tel:|\/(?!\/)|#)/i;
 
-/**
- * Cleans editor HTML down to a fixed set of tags and attributes before it is stored. The landing build renders
- * `body_html` as-is, so this is the only thing between the editor and the public site.
- */
+/** The only guard between the editor and the public site, which renders `body_html` as-is. */
 export async function sanitizeArticleHtml(html: string, mediaUrl: string, articleId: string): Promise<string> {
   // Article images are deleted with their article, so only this article's own uploads may appear in it.
   const imagePrefix = `${mediaUrl.replace(/\/$/, "")}/articles/${articleId}/`;
@@ -73,10 +69,15 @@ export async function sanitizeArticleHtml(html: string, mediaUrl: string, articl
   return out.replace(/(<p>\s*<\/p>\s*)+$/g, "").trim();
 }
 
-/** Plain text of sanitised HTML, for word counts. */
+/** Plain text of sanitised HTML. */
 export const textOf = (html: string) =>
   html
     .replace(/<[^>]+>/g, " ")
     .replace(/&nbsp;/g, " ")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;|&apos;/g, "'")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&amp;/g, "&")
     .replace(/\s+/g, " ")
     .trim();

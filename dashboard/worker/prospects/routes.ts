@@ -22,6 +22,7 @@ import {
   FIELD_FILTER_OPERATORS,
   insertProspect,
   loadProspect,
+  PROSPECT_COUNT,
   PROSPECT_SELECT,
   prospectWhere,
   refreshLastTouch,
@@ -188,7 +189,7 @@ export const prospectRoutes = new Hono<AuthedEnv>()
     const db = c.env.DB;
     const [rows, count] = await db.batch([
       stmt(db, `${PROSPECT_SELECT} ${where} ORDER BY p.created_at DESC, p.id LIMIT ? OFFSET ?`, [...params, body.limit, body.offset]),
-      stmt(db, `SELECT COUNT(*) AS n FROM prospects p LEFT JOIN users u ON u.id = p.assigned_user_id ${where}`, params),
+      stmt(db, `${PROSPECT_COUNT} ${where}`, params),
     ]);
     return c.json({
       prospects: (rows!.results as ProspectRow[]).map(toProspect),

@@ -28,7 +28,7 @@ import { Button } from "@/ui/button";
 import { Checkbox, Field, Input } from "@/ui/form";
 import { Dialog } from "@/ui/layout";
 import { cn } from "@/ui/cn";
-import { uploadArticleImage } from "./images";
+import { uploadArticleImage } from "@/lib/images";
 
 type Props = {
   articleId: string;

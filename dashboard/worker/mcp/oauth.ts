@@ -1,14 +1,13 @@
-// A minimal OAuth 2.1 server (PKCE, dynamic registration) for MCP clients such as claude.ai.
-// The sign-in is the admin's own dashboard login; tokens act as that admin (see caller.ts).
+// Minimal OAuth 2.1 (PKCE, dynamic registration) for MCP clients; admins sign in with their dashboard login.
 import { Hono, type Context } from "hono";
 import { HTTPException } from "hono/http-exception";
 import { z } from "zod";
 import { checkCredentials } from "../auth/login";
 import type { WorkerEnv } from "../env";
 import { ApiError } from "../http";
-import { liveAdmin } from "./caller";
+import { liveAdmin, passwordFingerprintOf } from "./caller";
 import { loginPage } from "./login-page";
-import { ACCESS_TTL_S, CODE_TTL_S, issueToken, passwordFingerprint, pkceChallenge, readToken, REFRESH_TTL_S, type Subject, type TokenClaims } from "./tokens";
+import { ACCESS_TTL_S, CODE_TTL_S, issueToken, pkceChallenge, readToken, REFRESH_TTL_S, type Subject, type TokenClaims } from "./tokens";
 
 // Codes go only to Claude's connector callbacks or loopback; any other URI could hand a code to a third party.
 const REDIRECT_ALLOWLIST = new Set(["https://claude.ai/api/mcp/auth_callback", "https://claude.com/api/mcp/auth_callback"]);
@@ -47,7 +46,6 @@ async function tokenPair(c: Ctx, subject: Subject) {
 
 type Authorize = Omit<TokenClaims<"code">, "sub" | "pwd"> & { state: string };
 
-// Checks an /authorize request (query or form); a bad request is a 400.
 async function readAuthorize(secret: string, params: Params): Promise<Authorize> {
   if (params.response_type !== "code") throw new HTTPException(400, { message: "response_type must be code" });
   if (params.code_challenge_method !== "S256" || !params.code_challenge) throw new HTTPException(400, { message: "PKCE with S256 is required" });
@@ -79,7 +77,6 @@ export const oauthRoutes = new Hono<WorkerEnv>()
   // RFC 9728: tells MCP clients which authorization server protects /mcp.
   .get("/.well-known/oauth-protected-resource/*", (c) => protectedResource(c))
   .get("/.well-known/oauth-protected-resource", (c) => protectedResource(c))
-  // RFC 8414: the endpoints below.
   .get("/.well-known/oauth-authorization-server", (c) => {
     const origin = new URL(c.req.url).origin;
     return c.json({
@@ -134,7 +131,8 @@ export const oauthRoutes = new Hono<WorkerEnv>()
       return loginPage(c, shown, request.client_name, { message: "Only admins can connect AI apps to the dashboard.", status: 403 });
     }
 
-    const code = await issueToken(secret, "code", { ...request, sub: user.id, pwd: await passwordFingerprint(user.password_hash) }, CODE_TTL_S);
+    const pwd = (await passwordFingerprintOf(c.env, user.id))!;
+    const code = await issueToken(secret, "code", { ...request, sub: user.id, pwd }, CODE_TTL_S);
     const target = new URL(request.redirect_uri);
     target.searchParams.set("code", code);
     if (state) target.searchParams.set("state", state);

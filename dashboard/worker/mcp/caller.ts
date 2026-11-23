@@ -7,10 +7,12 @@ import { passwordFingerprint, readToken, type Subject } from "./tokens";
 export type Caller = { id: string; username: string; client_name: string };
 export type McpEnv = { Bindings: Env; Variables: { caller: Caller } };
 
-/**
- * The user behind a token, checked live: still active, still an admin, and the same password as when they connected.
- * So deactivating someone, removing admin or changing the password cuts off their connectors on the next call.
- */
+export async function passwordFingerprintOf(env: Env, userId: string): Promise<string | null> {
+  const user = await first<{ password_hash: string }>(env.DB, "SELECT password_hash FROM users WHERE id = ?", [userId]);
+  return user ? passwordFingerprint(user.password_hash) : null;
+}
+
+/** The token's user if still an active admin with the password they connected with; otherwise null. */
 export async function liveAdmin(env: Env, subject: Subject): Promise<Caller | null> {
   const user = await first<{ id: string; username: string; role: string; is_active: number; password_hash: string }>(
     env.DB,
@@ -22,7 +24,6 @@ export async function liveAdmin(env: Env, subject: Subject): Promise<Caller | nu
   return { id: user.id, username: user.username, client_name: subject.client_name };
 }
 
-/** The header a 401 from /mcp carries, pointing clients at the OAuth metadata. */
 export const wwwAuthenticate = (request: Request) => `Bearer resource_metadata="${new URL(request.url).origin}/.well-known/oauth-protected-resource"`;
 
 export const requireMcpCaller: MiddlewareHandler<McpEnv> = async (c, next) => {
@@ -30,7 +31,6 @@ export const requireMcpCaller: MiddlewareHandler<McpEnv> = async (c, next) => {
   const claims = token ? await readToken(c.env.SESSION_SECRET, token, "access") : null;
   const caller = claims && claims.aud === new URL(c.req.url).origin ? await liveAdmin(c.env, claims) : null;
   if (!caller) {
-    // MCP clients start the OAuth flow from this header.
     return c.json({ detail: token ? "Invalid or expired token, or the account is no longer an active admin" : "Missing bearer token" }, 401, {
       "WWW-Authenticate": wwwAuthenticate(c.req.raw),
     });

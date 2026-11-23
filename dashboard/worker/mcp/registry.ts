@@ -15,12 +15,7 @@ type ToolDefinition<Input extends z.ZodObject> = {
   run: (ctx: ToolContext, input: z.output<Input>) => Promise<unknown>;
 };
 
-export type Tool = {
-  name: string;
-  title: string;
-  description: string;
-  access: "read" | "write";
-  input: z.ZodObject;
+export type Tool = Omit<ToolDefinition<z.ZodObject>, "run"> & {
   /** Validates raw MCP arguments, runs the tool and writes an audit line. */
   call: (ctx: ToolContext, rawInput: unknown) => Promise<unknown>;
 };

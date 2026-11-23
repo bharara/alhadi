@@ -19,3 +19,13 @@ export async function putPhoto(env: Env, key: string, full: ArrayBuffer, thumb: 
 export async function deletePhotos(env: Env, keys: string[]): Promise<void> {
   if (keys.length) await env.PHOTOS.delete(photoObjectKeys(keys));
 }
+
+/** Deletes every object under a key prefix, e.g. an article's image folder. */
+export async function deletePrefix(env: Env, prefix: string): Promise<void> {
+  for (let cursor: string | undefined; ; ) {
+    const page = await env.PHOTOS.list({ prefix, cursor });
+    if (page.objects.length) await env.PHOTOS.delete(page.objects.map((o) => o.key));
+    if (!page.truncated) return;
+    cursor = page.cursor;
+  }
+}

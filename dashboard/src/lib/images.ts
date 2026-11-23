@@ -7,7 +7,7 @@ const THUMB = 600;
 type Variant = { blob: Blob; width: number; height: number };
 
 /** Resizes in the browser so the Worker only stores files: a ≤1600px full image and a ≤600px thumbnail, both WebP. */
-export async function preparePhoto(file: File): Promise<{ full: Variant; thumb: Variant }> {
+async function preparePhoto(file: File): Promise<{ full: Variant; thumb: Variant }> {
   let bitmap: ImageBitmap;
   try {
     bitmap = await createImageBitmap(file, { imageOrientation: "from-image" });
@@ -38,16 +38,22 @@ async function encode(bitmap: ImageBitmap, maxEdge: number, quality: number): Pr
   return { blob, width, height };
 }
 
-type Uploaded = InferResponseType<(typeof crm.inventory)[":id"]["photos"]["$post"], 201>;
-
 // Multipart isn't modelled by the typed client, so this posts the form directly.
-export async function uploadPhoto(propertyId: string, file: File): Promise<Uploaded["photos"]> {
+async function postImage<T>(path: string, file: File): Promise<T> {
   const { full, thumb } = await preparePhoto(file);
   const form = new FormData();
   form.append("full", new File([full.blob], "full.webp", { type: "image/webp" }));
   form.append("thumb", new File([thumb.blob], "thumb.webp", { type: "image/webp" }));
   form.append("width", String(full.width));
   form.append("height", String(full.height));
-  const response = fetch(`/api/crm/inventory/${encodeURIComponent(propertyId)}/photos`, { method: "POST", body: form, credentials: "include" });
-  return (await unwrap(response as Promise<Response & { json(): Promise<Uploaded> }>)).photos;
+  const response = fetch(path, { method: "POST", body: form, credentials: "include" });
+  return unwrap(response as Promise<Response & { json(): Promise<T> }>);
 }
+
+type PropertyPhotos = InferResponseType<(typeof crm.inventory)[":id"]["photos"]["$post"], 201>;
+export type ArticleImage = InferResponseType<(typeof crm.articles)[":id"]["images"]["$post"], 201>;
+
+export const uploadPropertyPhoto = async (propertyId: string, file: File) =>
+  (await postImage<PropertyPhotos>(`/api/crm/inventory/${encodeURIComponent(propertyId)}/photos`, file)).photos;
+
+export const uploadArticleImage = (articleId: string, file: File) => postImage<ArticleImage>(`/api/crm/articles/${encodeURIComponent(articleId)}/images`, file);

@@ -11,7 +11,7 @@ import { useSession } from "@/session";
 import { Button } from "@/ui/button";
 import { Checkbox, Field, Input, Select, TagsInput, Textarea } from "@/ui/form";
 import { Badge, Card, ConfirmDialog, PageHeader } from "@/ui/layout";
-import { uploadArticleImage } from "./images";
+import { uploadArticleImage } from "@/lib/images";
 import { RichEditor } from "./RichEditor";
 
 type Article = InferResponseType<(typeof crm.articles)[":id"]["$get"], 200>;
@@ -50,7 +50,6 @@ const formOf = (a: Article): Form => ({
   author_name: a.author_name ?? "",
 });
 
-// Only changed fields go to the Worker.
 function changesOf(form: Form, saved: Form) {
   const changed = (key: keyof Form) => JSON.stringify(form[key]) !== JSON.stringify(saved[key]);
   const out: Record<string, unknown> = {};
@@ -63,12 +62,10 @@ function changesOf(form: Form, saved: Form) {
 export function ArticleEditorPage() {
   const { articleId = "" } = useParams();
   const query = useQuery(() => unwrap(crm.articles[":id"].$get({ param: { id: articleId } })), articleId);
-  const website = useQuery(() => unwrap(crm.website.$get()));
-  const site = website.status === "ready" ? website.data.site_url.replace(/\/$/, "") : "https://bestbuilderdeveloper.com";
-  return <QueryView query={query}>{(article) => <Editor key={article.id} article={article} site={site} onChange={(next) => query.setData(() => next)} />}</QueryView>;
+  return <QueryView query={query}>{(article) => <Editor key={article.id} article={article} onChange={(next) => query.setData(() => next)} />}</QueryView>;
 }
 
-function Editor({ article, site, onChange }: { article: Article; site: string; onChange: (a: Article) => void }) {
+function Editor({ article, onChange }: { article: Article; onChange: (a: Article) => void }) {
   const navigate = useNavigate();
   const { user } = useSession();
   const isAdmin = user.role === "admin";
@@ -86,21 +83,24 @@ function Editor({ article, site, onChange }: { article: Article; site: string; o
     const sent = form;
     const next = await save.run({ ...changesOf(sent, saved), ...extra });
     if (!next) return;
-    setSaved(sent);
-    // Fields the server may adjust (web address, dates, status) follow the server.
-    setForm((f) => ({ ...f, slug: next.slug }));
-    setSaved((s) => ({ ...s, slug: next.slug }));
+    // The server's copy of every field, except the body as the editor wrote it (see `saved`).
+    const synced = { ...formOf(next), body_html: sent.body_html };
+    setSaved(synced);
+    // Keep anything typed while the save was in flight.
+    setForm((f) => (f === sent ? synced : f));
     onChange(next);
     toast.success(message);
   }
 
   const saveRef = React.useRef(commit);
   saveRef.current = commit;
+  const canSaveRef = React.useRef(false);
+  canSaveRef.current = dirty && !locked && !save.pending;
   React.useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "s") {
         e.preventDefault();
-        void saveRef.current();
+        if (canSaveRef.current) void saveRef.current();
       }
     };
     window.addEventListener("keydown", onKey);
@@ -128,7 +128,7 @@ function Editor({ article, site, onChange }: { article: Article; site: string; o
   }
 
   const published = article.status === "published";
-  const live = `${site}/articles/${article.slug}/`;
+
 
   return (
     <>
@@ -148,7 +148,7 @@ function Editor({ article, site, onChange }: { article: Article; site: string; o
         actions={
           <>
             {published && (
-              <a href={live} target="_blank" rel="noopener" className="inline-flex h-10 items-center gap-2 rounded-md border border-border bg-card px-4 text-sm hover:bg-muted">
+              <a href={article.url} target="_blank" rel="noopener" className="inline-flex h-10 items-center gap-2 rounded-md border border-border bg-card px-4 text-sm hover:bg-muted">
                 View on site <ExternalLink className="h-4 w-4" />
               </a>
             )}
@@ -217,7 +217,7 @@ function Editor({ article, site, onChange }: { article: Article; site: string; o
             </div>
           </Card>
 
-          <SeoCard form={form} set={set} url={live} />
+          <SeoCard form={form} set={set} url={article.url.replace(/[^/]+\/$/, `${form.slug}/`)} />
 
           <Card title="Danger zone">
             <Button variant="danger-outline" size="sm" disabled={published && !isAdmin} onClick={() => setConfirmDelete(true)}>

@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import { parseJson } from "../db";
 import type { Env, WorkerEnv } from "../env";
 import { autoTitle, INVENTORY_TYPE_LABELS, WEBSITE_PROJECTS, type InventoryType } from "../inventory/fields";
-import { photoUrls } from "../inventory/photo-storage";
+import { photoUrls } from "../media/storage";
 import { publishedArticles } from "../articles/store";
 import { readWebsiteSettings } from "./settings";
 

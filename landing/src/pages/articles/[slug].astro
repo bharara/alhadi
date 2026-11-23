@@ -8,7 +8,7 @@ import ArticleCard from '../../components/ArticleCard.astro';
 import logo from '../../assets/logo.png';
 import { brand, contact, projects, waLink } from '../../data/site';
 import { shareImage } from '../../data/listings';
-import { articlePath, articles, formatDate, readingMinutes, summaryOf, wordCount, type Article } from '../../data/articles';
+import { articlePath, articles, formatDate, readingMinutes, type Article } from '../../data/articles';
 import { orgId, organization } from '../../data/schema';
 
 export const getStaticPaths = (() => articles.map((article) => ({ params: { slug: article.slug }, props: { article } }))) satisfies GetStaticPaths;
@@ -23,9 +23,12 @@ const url = new URL(articlePath(a), site).href;
 const project = projects.find((p) => p.slug === a.project_slug);
 const logoUrl = new URL((await getImage({ src: logo, width: 360, format: 'png' })).src, site).href;
 const share = a.cover ? await shareImage(a.cover) : undefined;
-const description = a.seo_description ?? summaryOf(a, 158);
+const description = a.seo_description ?? a.summary;
 const updated = a.updated_at.slice(0, 10) !== a.published_at.slice(0, 10);
-const related = [...articles.filter((x) => x.id !== a.id && a.project_slug && x.project_slug === a.project_slug), ...articles.filter((x) => x.id !== a.id && (!a.project_slug || x.project_slug !== a.project_slug))].slice(0, 3);
+// Same project first, then the newest others.
+const others = articles.filter((x) => x.id !== a.id);
+const sameProject = (x: Article) => Boolean(a.project_slug) && x.project_slug === a.project_slug;
+const related = [...others.filter(sameProject), ...others.filter((x) => !sameProject(x))].slice(0, 3);
 const askHref = waLink(`Assalam o Alaikum, I read "${a.title}" on your website and have a question. ${url}`);
 
 const crumbs = [
@@ -51,7 +54,7 @@ const jsonLd = {
       author: a.author_name ? { '@type': 'Person', name: a.author_name } : { '@id': orgId(site) },
       publisher: { '@id': orgId(site) },
       inLanguage: 'en-PK',
-      wordCount: wordCount(a),
+      wordCount: a.words,
       timeRequired: `PT${readingMinutes(a)}M`,
       ...(a.tags.length && { keywords: a.tags.join(', ') }),
       ...(project && { about: { '@type': 'Place', name: `${project.fullName}, Faisalabad`, url: new URL(`/${project.slug}/`, site).href } }),
@@ -268,12 +271,6 @@ const jsonLd = {
     border: 1px solid var(--line);
     margin-top: 1.6em;
     margin-bottom: 0.6em;
-  }
-  .prose :global(code) {
-    font-size: 0.9em;
-    background: var(--card);
-    padding: 2px 6px;
-    border-radius: 4px;
   }
 
   .cta {

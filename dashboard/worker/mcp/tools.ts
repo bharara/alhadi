@@ -1,14 +1,13 @@
-// What the MCP server offers: reading CRM and website data, and adding leads and articles.
-// Deliberately no update or delete tools; those stay in the dashboard.
+// Read CRM and website data, and add leads and articles; updates and deletes stay in the dashboard.
 import { z } from "zod";
-import { all, first, likeContains, newId } from "../db";
+import { all, first, newId } from "../db";
 import { ApiError } from "../http";
 import { createArticle } from "../articles/create";
-import { ARTICLE_SELECT, ARTICLE_STATUSES, toArticle, type ArticleRow } from "../articles/store";
-import { textOf } from "../articles/sanitize";
+import { ALLOWED } from "../articles/sanitize";
+import { ARTICLE_SELECT, ARTICLE_STATUSES, searchArticles, toArticle, type ArticleRow } from "../articles/store";
 import { WEBSITE_PROJECT_SLUGS } from "../inventory/fields";
 import { normalizePhoneOrThrow, normalizeProspectFields, PROSPECT_STATUSES } from "../prospects/fields";
-import { assertUserExists, insertProspect, loadProspect, PROSPECT_SELECT, prospectWhere, toProspect, type ProspectRow } from "../prospects/store";
+import { insertProspect, loadProspect, PROSPECT_COUNT, PROSPECT_SELECT, prospectWhere, toProspect, type ProspectRow } from "../prospects/store";
 import { defineTool, type Tool } from "./registry";
 import { describeSchema, MAX_ROWS, runReadOnlySql } from "./sql";
 
@@ -48,14 +47,11 @@ const prospectTools: Tool[] = [
       limit: z.number().int().min(1).max(100).default(25),
       offset: z.number().int().min(0).default(0),
     }),
-    run: async ({ env }, { search, status, tag, limit, offset }) => {
-      const { where, params } = prospectWhere({ search, status });
-      const clauses = where ? [where.replace(/^WHERE /, "")] : [];
-      if (tag) clauses.push("EXISTS (SELECT 1 FROM json_each(p.tags) j WHERE lower(j.value) = lower(?))"), params.push(tag.trim());
-      const filter = clauses.length ? `WHERE ${clauses.join(" AND ")}` : "";
+    run: async ({ env }, { limit, offset, ...filters }) => {
+      const { where, params } = prospectWhere(filters);
       const [rows, count] = await Promise.all([
-        all<ProspectRow>(env.DB, `${PROSPECT_SELECT} ${filter} ORDER BY p.created_at DESC, p.id LIMIT ? OFFSET ?`, [...params, limit, offset]),
-        first<{ n: number }>(env.DB, `SELECT COUNT(*) AS n FROM prospects p LEFT JOIN users u ON u.id = p.assigned_user_id ${filter}`, params),
+        all<ProspectRow>(env.DB, `${PROSPECT_SELECT} ${where} ORDER BY p.created_at DESC, p.id LIMIT ? OFFSET ?`, [...params, limit, offset]),
+        first<{ n: number }>(env.DB, `${PROSPECT_COUNT} ${where}`, params),
       ]);
       return { prospects: rows.map(toProspect), total: count?.n ?? 0, limit, offset };
     },
@@ -100,64 +96,49 @@ const prospectTools: Tool[] = [
       const phone = normalizePhoneOrThrow(fields.phone).primary;
       const existing = await first<{ id: string }>(env.DB, "SELECT id FROM prospects WHERE phone = ?", [phone]);
       if (existing) return { created: false, prospect: await loadProspect(env.DB, existing.id) };
-      let assigned_user_id: string | null = null;
-      if (assigned_username) {
-        assigned_user_id = (await first<{ id: string }>(env.DB, "SELECT id FROM users WHERE username = ? AND is_active = 1", [assigned_username.trim().toLowerCase()]))?.id ?? null;
-        if (!assigned_user_id) throw new ApiError(422, `No active user named ${assigned_username}`);
-        await assertUserExists(env.DB, assigned_user_id);
-      }
+      const assignee = assigned_username
+        ? await first<{ id: string }>(env.DB, "SELECT id FROM users WHERE username = ? AND is_active = 1", [assigned_username.trim().toLowerCase()])
+        : null;
+      if (assigned_username && !assignee) throw new ApiError(422, `No active user named ${assigned_username}`);
       const id = newId();
-      await insertProspect(env.DB, id, normalizeProspectFields({ ...fields, assigned_user_id })).run();
+      await insertProspect(env.DB, id, normalizeProspectFields({ ...fields, assigned_user_id: assignee?.id ?? null })).run();
       return { created: true, prospect: await loadProspect(env.DB, id) };
     },
   }),
 ];
-
-const site = (url: string) => url.replace(/\/$/, "");
 
 const articleTools: Tool[] = [
   defineTool({
     name: "list_articles",
     title: "List articles",
     access: "read",
-    description: "Articles written for bestbuilderdeveloper.com/articles/, newest edit first, without their bodies. Filter by status or title text.",
+    description: "Articles written for bestbuilderdeveloper.com/articles/, most recently edited first, without their bodies. Filter by status or by text in the title, excerpt or web address.",
     input: z.object({
       status: z.enum(ARTICLE_STATUSES).optional(),
       search: z.string().max(200).optional(),
       limit: z.number().int().min(1).max(100).default(25),
     }),
-    run: async ({ env }, { status, search, limit }) => {
-      const clauses: string[] = [];
-      const params: (string | number)[] = [];
-      if (status) clauses.push("a.status = ?"), params.push(status);
-      if (search?.trim()) clauses.push("(a.title LIKE ? ESCAPE '\\' OR a.excerpt LIKE ? ESCAPE '\\')"), params.push(likeContains(search.trim()), likeContains(search.trim()));
-      const rows = await all<ArticleRow>(env.DB, `${ARTICLE_SELECT} ${clauses.length ? `WHERE ${clauses.join(" AND ")}` : ""} ORDER BY COALESCE(a.updated_at, a.created_at) DESC LIMIT ?`, [...params, limit]);
-      return {
-        articles: rows.map((row) => {
-          const { body_html, ...article } = toArticle(env, row);
-          return { ...article, words: textOf(body_html).split(" ").filter(Boolean).length, url: row.status === "published" ? `${site(env.PUBLIC_SITE_URL)}/articles/${row.slug}/` : null };
-        }),
-      };
-    },
+    run: async ({ env }, filters) => ({ articles: await searchArticles(env, filters) }),
   }),
   defineTool({
     name: "get_article",
     title: "Get an article",
     access: "read",
-    description: "One article by id or web address (slug), including its HTML body.",
+    description: "One article by id or web address (slug), including its HTML body. url is live only when status is published.",
     input: z.object({ id: z.string().max(64).optional(), slug: z.string().max(120).optional() }).refine((v) => v.id || v.slug, "Give an id or a slug"),
     run: async ({ env }, { id, slug }) => {
       const row = await first<ArticleRow>(env.DB, `${ARTICLE_SELECT} WHERE ${id ? "a.id" : "a.slug"} = ?`, [id ?? slug!]);
       if (!row) throw new ApiError(404, "Article not found");
-      return { ...toArticle(env, row), url: row.status === "published" ? `${site(env.PUBLIC_SITE_URL)}/articles/${row.slug}/` : null };
+      return toArticle(env, row);
     },
   }),
   defineTool({
     name: "create_article",
     title: "Create an article",
     access: "write",
-    description:
-      "Adds an article. It is a draft unless publish is true; drafts can be reviewed and published from Dashboard → Articles. The body is HTML using only p, h2, h3, h4, strong, em, u, s, a (href), ul, ol, li, blockquote, hr and br; anything else is stripped. Images can be added afterwards in the dashboard. A published article appears on the site after the automatic rebuild, a few minutes later.",
+    description: `Adds an article. It is a draft unless publish is true; drafts can be reviewed and published from Dashboard → Articles (dashboard_url). The body is HTML using only ${Object.keys(ALLOWED)
+      .filter((tag) => tag !== "img")
+      .join(", ")}; anything else is stripped. Images are added afterwards in the dashboard. A published article appears on the site after the automatic rebuild, a few minutes later.`,
     input: z.object({
       title: z.string().trim().min(1).max(200),
       body_html: z.string().max(300_000),
@@ -171,11 +152,7 @@ const articleTools: Tool[] = [
     }),
     run: async ({ env, caller }, input) => {
       const article = await createArticle(env, caller.id, input);
-      return {
-        ...article,
-        dashboard_url: `${site(env.APP_URL)}/articles/${article.id}`,
-        url: article.status === "published" ? `${site(env.PUBLIC_SITE_URL)}/articles/${article.slug}/` : null,
-      };
+      return { ...article, dashboard_url: `${env.APP_URL.replace(/\/$/, "")}/articles/${article.id}` };
     },
   }),
 ];

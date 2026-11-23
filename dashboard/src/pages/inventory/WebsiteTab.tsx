@@ -9,7 +9,7 @@ import { Button } from "@/ui/button";
 import { Checkbox, Field, Input, Select, TagsInput, Textarea } from "@/ui/form";
 import { Badge, Card, ConfirmDialog } from "@/ui/layout";
 import { cn } from "@/ui/cn";
-import { uploadPhoto } from "./photos";
+import { uploadPropertyPhoto } from "@/lib/images";
 
 type Photo = InferResponseType<(typeof crm.inventory)[":id"]["photos"]["$get"], 200>["photos"][number];
 type ProjectSlug = (typeof WEBSITE_PROJECTS)[number]["slug"];
@@ -184,7 +184,7 @@ function PhotosCard({ propertyId, photos, disabled, onChange }: { propertyId: st
     for (const [index, file] of batch.entries()) {
       setUploads((u) => u.map((x, i) => (i === index ? { ...x, status: "uploading" } : x)));
       try {
-        latest = await uploadPhoto(propertyId, file);
+        latest = await uploadPropertyPhoto(propertyId, file);
         onChange(latest);
         setUploads((u) => u.map((x, i) => (i === index ? { ...x, status: "done" } : x)));
       } catch (error) {

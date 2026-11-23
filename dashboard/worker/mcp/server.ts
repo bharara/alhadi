@@ -44,7 +44,6 @@ export async function handleMcpRequest(request: Request, ctx: ToolContext): Prom
   try {
     await server.connect(transport);
     const response = await transport.handleRequest(request);
-    // Buffer the body before the per-request server closes.
     return new Response(await response.arrayBuffer(), { status: response.status, headers: { ...Object.fromEntries(response.headers), "Cache-Control": "no-store" } });
   } finally {
     await server.close();

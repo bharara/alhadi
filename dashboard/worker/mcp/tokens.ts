@@ -1,5 +1,4 @@
-// Stateless OAuth: client IDs, codes and tokens are JWTs signed with a key derived from SESSION_SECRET,
-// so rotating that secret revokes every connector at once (and signs everyone out of the dashboard).
+// Client IDs, codes and tokens are JWTs keyed off SESSION_SECRET; rotating it revokes every connector.
 import { sign, verify } from "hono/jwt";
 import { z } from "zod";
 
@@ -40,7 +39,6 @@ export async function issueToken<T extends TokenType>(secret: string, typ: T, cl
   return sign({ ...claims, typ, iat: now, ...(ttlSeconds ? { exp: now + ttlSeconds } : {}) }, await signingKey(secret), "HS256");
 }
 
-/** The token's claims when it is a valid, unexpired token of this type; otherwise null. */
 export async function readToken<T extends TokenType>(secret: string, token: string, typ: T): Promise<TokenClaims<T> | null> {
   let payload: unknown;
   try {

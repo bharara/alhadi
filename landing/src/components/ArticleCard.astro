@@ -1,5 +1,5 @@
 ---
-import { articlePath, formatDate, readingMinutes, summaryOf, type Article } from '../data/articles';
+import { articlePath, formatDate, readingMinutes, type Article } from '../data/articles';
 
 interface Props {
   article: Article;
@@ -35,7 +35,7 @@ const href = articlePath(a);
       <time datetime={a.published_at}>{formatDate(a.published_at)}</time> · {readingMinutes(a)} min read
     </p>
     <h3><a href={href}>{a.title}</a></h3>
-    <p class="sum">{summaryOf(a)}</p>
+    <p class="sum">{a.summary}</p>
     <a class="more" href={href} aria-label={`Read: ${a.title}`}>Read article →</a>
   </div>
 </article>

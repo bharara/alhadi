@@ -1,14 +1,13 @@
 import { z } from "zod";
 import { first, nowIso, type Db } from "../db";
 import { ApiError } from "../http";
+import { slugify, slugSchema, uniqueSlug } from "../slug";
 import { optionalText } from "../validation";
 import { WEBSITE_PROJECTS, WEBSITE_PROJECT_SLUGS, type InventoryType, type WebsiteProjectSlug } from "./fields";
 
-export const SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
-
 export const webFields = {
   project_slug: z.enum(WEBSITE_PROJECT_SLUGS).nullable(),
-  slug: z.string().trim().toLowerCase().max(120).regex(SLUG, "Use lowercase letters, numbers and single hyphens"),
+  slug: slugSchema,
   web_title: optionalText(160),
   web_summary: optionalText(300),
   web_description: optionalText(5000),
@@ -21,22 +20,6 @@ export const webFields = {
 };
 
 type PublishTarget = { id: string; town: string; size: string; type: InventoryType; block: string | null; project_slug: string | null; slug: string | null; published_at: string | null };
-
-export const slugify = (value: string, fallback = "property") =>
-  value
-    .toLowerCase()
-    .normalize("NFKD")
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 100)
-    .replace(/-+$/, "") || fallback;
-
-async function uniqueSlug(db: Db, base: string, exceptId: string): Promise<string> {
-  for (let n = 1; ; n++) {
-    const candidate = n === 1 ? base : `${base}-${n}`;
-    if (!(await first(db, "SELECT id FROM inventory_items WHERE slug = ? AND id != ?", [candidate, exceptId]))) return candidate;
-  }
-}
 
 const guessProject = (town: string): WebsiteProjectSlug | null => WEBSITE_PROJECTS.find((p) => town.toLowerCase().includes(p.town))?.slug ?? null;
 
@@ -51,7 +34,7 @@ export async function impliedWebColumns(db: Db, item: PublishTarget, changes: { 
   const project = changes.project_slug !== undefined ? changes.project_slug : (item.project_slug ?? guessProject(item.town));
   if (changes.project_slug === undefined && !item.project_slug) columns.project_slug = project;
   if (!(changes.slug ?? item.slug)) {
-    columns.slug = await uniqueSlug(db, slugify(`${project ?? item.town} ${item.size} ${item.type.replace("_", " ")}${item.block ? ` block ${item.block}` : ""}`), item.id);
+    columns.slug = await uniqueSlug(db, "inventory_items", slugify(`${project ?? item.town} ${item.size} ${item.type.replace("_", " ")}${item.block ? ` block ${item.block}` : ""}`, "property"), item.id);
   }
   if (!item.published_at) columns.published_at = nowIso();
   return columns;

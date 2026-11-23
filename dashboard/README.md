@@ -30,13 +30,9 @@ A change to a published property (or to a field it shows, or the website setting
 
 ## Articles
 
-Dashboard → Articles writes the posts published at `/articles/<slug>/`. Each is one row in `articles` (migration `0006`).
-- The body is written in a TipTap editor (`src/pages/articles/RichEditor.tsx`) with headings, lists, quotes, links and images. Images can also be pasted or dropped in.
-- On save the Worker sanitises the HTML to a fixed set of tags (`worker/articles/sanitize.ts`). The landing build renders it as-is, so that file is the only guard.
-- Cover and in-text images are resized in the browser like property photos and stored in R2 under `articles/<id>/`. Deleting an article deletes the folder.
-- Anyone can write drafts. Only admins can publish, unpublish, edit a live article or delete one. Publishing, or editing a published article, marks the site for rebuild.
+Dashboard → Articles writes the posts at `/articles/<slug>/` (table `articles`). Members write drafts; only admins publish or change published articles. Images go to R2 under `articles/<id>/` and are deleted with the article.
 
-The landing build reads `GET /api/public/articles` and renders `/articles/`, each article page (with `BlogPosting` JSON-LD) and the home page Articles section, which shows featured articles first.
+`worker/articles/sanitize.ts` is the only guard between the editor and the public site: the landing build renders `body_html` as-is.
 
 ## MCP server (AI connectors)
 
@@ -50,6 +46,7 @@ Admins can connect an AI app such as Claude to the CRM: in claude.ai, add a cust
 **Access:**
 - Only active admins can connect. Tokens act as that admin and every call is re-checked against their account, so deactivating them, removing admin, or changing their password disconnects their apps on the next call.
 - The OAuth server (`worker/mcp/oauth.ts`) is stateless: client IDs, codes and tokens are JWTs signed with a key derived from `SESSION_SECRET`. Rotating it disconnects every app (and signs everyone out). Access tokens last an hour and refresh tokens 30 days.
+- Being stateless, an authorization code works more than once within its 5 minutes and refresh tokens don't rotate; PKCE and the per-call account check are what bound that.
 - Sign-ins share the dashboard's lockout (10 failures in 15 minutes).
 - `query_sql` can't read credential tables (`users`, invites, password links, login failures). The `team_members` view gives usernames and roles instead.
 - Every tool call is logged as an `[mcp:audit]` line with the admin, the app and the input. Query them with `cf observability telemetry query`.

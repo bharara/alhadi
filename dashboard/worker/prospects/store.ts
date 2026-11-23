@@ -26,7 +26,10 @@ export type ProspectRow = {
 
 export type Prospect = Omit<ProspectRow, "tags" | "extra"> & { tags: string[]; extra: Record<string, unknown> };
 
-export const PROSPECT_SELECT = `SELECT p.*, u.username AS assigned_user_username FROM prospects p LEFT JOIN users u ON u.id = p.assigned_user_id`;
+const PROSPECT_FROM = "FROM prospects p LEFT JOIN users u ON u.id = p.assigned_user_id";
+export const PROSPECT_SELECT = `SELECT p.*, u.username AS assigned_user_username ${PROSPECT_FROM}`;
+// prospectWhere() can filter on u.username, so counts need the same join.
+export const PROSPECT_COUNT = `SELECT COUNT(*) AS n ${PROSPECT_FROM}`;
 
 export const toProspect = (row: ProspectRow): Prospect => ({
   ...row,
@@ -82,6 +85,7 @@ export type ProspectFilters = {
   touched?: boolean | null;
   touch_kind?: string | null;
   assigned_user_id?: string | null;
+  tag?: string | null;
 };
 
 const COLUMN: Record<string, string> = {
@@ -111,6 +115,10 @@ export function prospectWhere(filters: ProspectFilters): { where: string; params
   if (filters.assigned_user_id) {
     clauses.push("p.assigned_user_id = ?");
     params.push(filters.assigned_user_id);
+  }
+  if (filters.tag?.trim()) {
+    clauses.push("EXISTS (SELECT 1 FROM json_each(p.tags) j WHERE lower(j.value) = lower(?))");
+    params.push(filters.tag.trim());
   }
   for (const filter of filters.field_filters ?? []) {
     const value = filter.value?.trim() ?? "";

@@ -1,17 +1,10 @@
-import { first, newId, nowIso, stmt, type Db } from "../db";
+import { newId, nowIso, stmt } from "../db";
 import type { Env } from "../env";
 import type { WebsiteProjectSlug } from "../inventory/fields";
-import { slugify } from "../inventory/web";
+import { slugify, uniqueSlug } from "../slug";
 import { requestSiteRebuild } from "../site-build";
 import { sanitizeArticleHtml } from "./sanitize";
 import { loadArticleRow, toArticle } from "./store";
-
-export async function uniqueArticleSlug(db: Db, base: string, exceptId: string): Promise<string> {
-  for (let n = 1; ; n++) {
-    const candidate = n === 1 ? base : `${base}-${n}`;
-    if (!(await first(db, "SELECT id FROM articles WHERE slug = ? AND id != ?", [candidate, exceptId]))) return candidate;
-  }
-}
 
 export type NewArticle = {
   title: string;
@@ -29,7 +22,7 @@ export type NewArticle = {
 export async function createArticle(env: Env, userId: string, input: NewArticle) {
   const id = newId();
   const now = nowIso();
-  const slug = await uniqueArticleSlug(env.DB, slugify(input.title, "article"), id);
+  const slug = await uniqueSlug(env.DB, "articles", slugify(input.title, "article"), id);
   const body = input.body_html ? await sanitizeArticleHtml(input.body_html, env.MEDIA_URL, id) : "";
   await stmt(
     env.DB,

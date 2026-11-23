@@ -10,7 +10,7 @@ export const GET: APIRoute = ({ site }) => {
     ...projects.map((p) => ({ path: `/${p.slug}/`, lastmod: today, priority: '0.9' })),
     { path: '/properties/', lastmod: today, priority: '0.9' },
     ...listings.map((l) => ({ path: listingPath(l), lastmod: l.updated_at.slice(0, 10), priority: '0.8' })),
-    ...(articles.length ? [{ path: '/articles/', lastmod: articles[0]!.updated_at.slice(0, 10), priority: '0.7' }] : []),
+    ...(articles.length ? [{ path: '/articles/', lastmod: articles.map((a) => a.updated_at).sort().at(-1)!.slice(0, 10), priority: '0.7' }] : []),
     ...articles.map((a) => ({ path: articlePath(a), lastmod: a.updated_at.slice(0, 10), priority: '0.7' })),
   ];
   const urls = entries

@@ -10,7 +10,7 @@ import { Field, Input, Select } from "@/ui/form";
 import { Badge, Dialog, EmptyState, PageHeader } from "@/ui/layout";
 import { Table, Td, Th, Tr } from "@/ui/table";
 
-export type ArticleSummary = InferResponseType<typeof crm.articles.search.$post, 200>["articles"][number];
+type ArticleSummary = InferResponseType<typeof crm.articles.search.$post, 200>["articles"][number];
 type Status = ArticleSummary["status"];
 
 export function ArticlesPage() {

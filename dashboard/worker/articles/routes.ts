@@ -1,13 +1,14 @@
 import { Hono } from "hono";
 import { z } from "zod";
-import { all, first, likeContains, newId, nowIso, stmt, type Db } from "../db";
+import { all, first, likeContains, newId, nowIso, stmt } from "../db";
 import type { AuthedEnv, Env } from "../env";
 import { ApiError } from "../http";
 import { WEBSITE_PROJECT_SLUGS } from "../inventory/fields";
 import { deletePhotos, photoUrls, putPhoto } from "../inventory/photo-storage";
-import { SLUG, slugify } from "../inventory/web";
+import { SLUG } from "../inventory/web";
 import { requestSiteRebuild } from "../site-build";
 import { idParam, optionalText, requiredText, zJson, zParam } from "../validation";
+import { createArticle } from "./create";
 import { sanitizeArticleHtml, textOf } from "./sanitize";
 import { ARTICLE_SELECT, ARTICLE_STATUSES, articleFolder, loadArticleRow, toArticle, type ArticleRow } from "./store";
 
@@ -46,13 +47,6 @@ const imageUpload = z.object({
 
 const isWebp = (f: File) => f.type === "image/webp" && f.size > 0 && f.size <= MAX_IMAGE_BYTES;
 
-async function uniqueSlug(db: Db, base: string, exceptId: string): Promise<string> {
-  for (let n = 1; ; n++) {
-    const candidate = n === 1 ? base : `${base}-${n}`;
-    if (!(await first(db, "SELECT id FROM articles WHERE slug = ? AND id != ?", [candidate, exceptId]))) return candidate;
-  }
-}
-
 async function deleteFolder(env: Env, id: string): Promise<void> {
   const prefix = articleFolder(id);
   for (let cursor: string | undefined; ; ) {
@@ -83,11 +77,7 @@ export const articleRoutes = new Hono<AuthedEnv>()
     return c.json({ articles: rows.map((row) => ({ ...toArticle(c.env, row), body_html: undefined, words: textOf(row.body_html).split(" ").filter(Boolean).length })) });
   })
   .post("/", zJson(z.object({ title: requiredText(200) })), async (c) => {
-    const { title } = c.req.valid("json");
-    const id = newId();
-    const slug = await uniqueSlug(c.env.DB, slugify(title, "article"), id);
-    await stmt(c.env.DB, "INSERT INTO articles (id, slug, title, created_by_user_id, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?5)", [id, slug, title, c.get("user").id, nowIso()]).run();
-    return c.json(toArticle(c.env, await loadArticleRow(c.env, id)), 201);
+    return c.json(await createArticle(c.env, c.get("user").id, { title: c.req.valid("json").title }), 201);
   })
   .get("/:id", zParam(idParam), async (c) => c.json(toArticle(c.env, await loadArticleRow(c.env, c.req.valid("param").id))))
   .patch("/:id", zParam(idParam), zJson(articleUpdate), async (c) => {

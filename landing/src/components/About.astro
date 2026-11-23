@@ -1,0 +1,123 @@
+---
+import { Image } from 'astro:assets';
+import homes from '../assets/sitara/homes.jpg';
+import { contact } from '../data/site';
+
+const points = [
+  { title: 'Property dealing', text: 'Verified plots and homes, with file, transfer and payment-plan help from the first call to possession.' },
+  { title: 'Development', text: 'Our own projects on the Canal corridor: Sitara Villas Best Block, Abdullah Gardens and City Walk.' },
+  { title: 'Build & furnish', text: 'Best Builders Interiors designs and builds your house; Best Builders Homes furnishes it.' },
+];
+---
+
+<section class="about" id="about" aria-labelledby="about-title">
+  <div class="wrap grid">
+    <div class="photo">
+      <Image src={homes} alt="Completed homes along a green avenue in Sitara Villas, Faisalabad" widths={[640, 960, 1280]} sizes="(max-width: 900px) 100vw, 45vw" />
+    </div>
+    <div class="text">
+      <span class="kicker">About us</span>
+      <h2 id="about-title">Faisalabad's<br /><span class="gold">property people.</span></h2>
+      <p class="lede">
+        Best Builders &amp; Developers is a property dealer and real estate developer in Faisalabad. We sell residential and commercial plots in our
+        own projects on the Canal corridor, and help families buy, build and furnish a home with one group they can call.
+      </p>
+      <ul class="points">
+        {
+          points.map((p) => (
+            <li>
+              <h3>{p.title}</h3>
+              <p>{p.text}</p>
+            </li>
+          ))
+        }
+      </ul>
+      <div class="row">
+        <a class="btn btn-gold" href="#projects">See our projects</a>
+        <a class="btn btn-outline" href={`tel:${contact.phoneTel}`}>Call {contact.phoneDisplay}</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<style>
+  .about {
+    padding: 120px 0;
+    border-top: 1px solid var(--line);
+  }
+  .grid {
+    display: grid;
+    grid-template-columns: 1fr 1.1fr;
+    gap: 70px;
+    align-items: center;
+  }
+  .photo {
+    border-radius: 10px;
+    overflow: hidden;
+    border: 1px solid var(--line);
+    aspect-ratio: 4 / 5;
+  }
+  .photo img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+  h2 {
+    font-size: clamp(40px, 4.6vw, 60px);
+    line-height: 0.95;
+    margin: 14px 0 24px;
+  }
+  .lede {
+    color: #cfc8bb;
+    font-size: 18px;
+    line-height: 1.7;
+    max-width: 580px;
+  }
+  .points {
+    list-style: none;
+    margin: 34px 0 38px;
+    border-top: 1px solid var(--line);
+  }
+  .points li {
+    display: grid;
+    grid-template-columns: 200px 1fr;
+    gap: 20px;
+    padding: 18px 0;
+    border-bottom: 1px solid var(--line);
+  }
+  h3 {
+    font-size: 15px;
+    letter-spacing: 0.06em;
+    color: var(--gold-2);
+  }
+  .points p {
+    color: var(--mut);
+    font-size: 15px;
+    line-height: 1.6;
+  }
+  .row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+
+  @media (max-width: 900px) {
+    .about {
+      padding: 72px 0;
+    }
+    .grid {
+      grid-template-columns: 1fr;
+      gap: 36px;
+    }
+    .photo {
+      aspect-ratio: 4 / 3;
+    }
+    .points li {
+      grid-template-columns: 1fr;
+      gap: 6px;
+    }
+    .row .btn {
+      flex: 1;
+    }
+  }
+</style>

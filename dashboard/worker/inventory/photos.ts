@@ -4,20 +4,11 @@ import { all, first, newId, nowIso, stmt } from "../db";
 import type { AuthedEnv, Env } from "../env";
 import { ApiError } from "../http";
 import { requestSiteRebuild } from "../site-build";
-import { idParam, optionalText, zJson, zParam } from "../validation";
+import { idParam, zJson, zParam } from "../validation";
 import { MAX_PHOTOS } from "./fields";
-import { deletePhotos, photoUrls, putPhoto } from "./photo-storage";
+import { deletePhotos, photoUrls, putPhoto } from "../media/storage";
+import { readImageUpload } from "../media/upload";
 import { loadEditable } from "./store";
-
-const MAX_PHOTO_BYTES = 4 * 1024 * 1024;
-
-const photoUpload = z.object({
-  full: z.instanceof(File),
-  thumb: z.instanceof(File),
-  width: z.coerce.number().int().min(1).max(4000),
-  height: z.coerce.number().int().min(1).max(4000),
-  alt: optionalText(200),
-});
 
 type PhotoRow = { id: string; storage_key: string; width: number; height: number; alt: string | null; sort_order: number };
 
@@ -26,18 +17,14 @@ async function photosOf(env: Env, propertyId: string) {
   return rows.map(({ storage_key, ...photo }) => ({ ...photo, ...photoUrls(env, storage_key) }));
 }
 
-const isWebp = (f: File) => f.type === "image/webp" && f.size > 0 && f.size <= MAX_PHOTO_BYTES;
-
-// Mounted at /inventory/:id/photos. The browser resizes photos to WebP before uploading (src/pages/inventory/photos.ts).
+// Mounted at /inventory/:id/photos. The browser resizes photos to WebP before uploading (src/lib/images.ts).
 export const photoRoutes = new Hono<AuthedEnv>()
   .get("/", zParam(idParam), async (c) => c.json({ photos: await photosOf(c.env, c.req.valid("param").id) }))
   .post("/", zParam(idParam), async (c) => {
     const env = c.env;
     const item = await loadEditable(env, c.req.valid("param").id, c.get("user"));
     if (item.photo_count >= MAX_PHOTOS) throw new ApiError(400, `A property can have at most ${MAX_PHOTOS} photos`);
-    const parsed = photoUpload.safeParse(Object.fromEntries((await c.req.formData()).entries()));
-    if (!parsed.success || !isWebp(parsed.data.full) || !isWebp(parsed.data.thumb)) throw new ApiError(422, "Upload WebP images under 4 MB (the dashboard converts photos for you)");
-    const { full, thumb, width, height, alt } = parsed.data;
+    const { full, thumb, width, height, alt } = await readImageUpload(c.req);
     const id = newId();
     const key = `properties/${item.id}/${id}`;
     await putPhoto(env, key, await full.arrayBuffer(), await thumb.arrayBuffer());

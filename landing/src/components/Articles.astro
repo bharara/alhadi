@@ -1,0 +1,82 @@
+---
+import ArticleCard from './ArticleCard.astro';
+import { homeArticles } from '../data/articles';
+
+const shown = homeArticles(3);
+---
+
+{
+  shown.length > 0 && (
+    <section class="articles" id="articles" aria-labelledby="articles-title">
+      <div class="wrap">
+        <div class="head">
+          <div>
+            <span class="kicker">Articles</span>
+            <h2 id="articles-title">
+              Guides &amp; <span class="gold">news</span>
+            </h2>
+            <p class="intro">Advice on buying, building and investing in Faisalabad property, and updates from our projects.</p>
+          </div>
+          <a class="btn btn-outline" href="/articles/">
+            All articles →
+          </a>
+        </div>
+        <div class="grid">
+          {shown.map((article) => (
+            <ArticleCard article={article} />
+          ))}
+        </div>
+      </div>
+    </section>
+  )
+}
+
+<style>
+  .articles {
+    padding: 120px 0;
+    border-top: 1px solid var(--line);
+  }
+  .head {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    gap: 24px;
+    margin-bottom: 40px;
+  }
+  h2 {
+    font-size: clamp(36px, 4.4vw, 56px);
+    line-height: 0.95;
+    margin: 14px 0 18px;
+  }
+  .intro {
+    color: var(--mut);
+    font-size: 16px;
+    line-height: 1.7;
+    max-width: 560px;
+  }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 18px;
+  }
+
+  @media (max-width: 1000px) {
+    .grid {
+      grid-template-columns: 1fr 1fr;
+    }
+  }
+  @media (max-width: 900px) {
+    .articles {
+      padding: 72px 0;
+    }
+    .head {
+      flex-direction: column;
+      align-items: flex-start;
+    }
+  }
+  @media (max-width: 560px) {
+    .grid {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>

@@ -161,11 +161,11 @@ export const projects: Project[] = [
     slug: 'sitara-villas',
     name: 'Sitara Villas',
     fullName: 'Sitara Villas Best Block',
-    title: ['Sitara Villas', 'Best Block'],
+    title: ['Sitara', 'Villas'],
     status: 'selling',
     kind: 'Residential',
     summary:
-      'A gated block of 1, 2 and 4 Kanal plots on Canal Expressway, with 50 ft roads, green belts and parks. Developed with Sitara Group.',
+      'A gated block of 1, 2 and 4 Kanal plots on Canal Expressway, with up to 100 ft wide roads, green belts and parks. Developed with Sitara Group.',
     image: sitaraGate,
     imageAlt: 'The stone pillar entrance gate of Sitara Villas on Canal Expressway, Faisalabad',
     specs: [

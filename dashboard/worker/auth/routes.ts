@@ -1,41 +1,21 @@
 import { Hono } from "hono";
 import { z } from "zod";
-import { first, newId, nowIso, run, type Db } from "../db";
+import { first, newId, nowIso, type Db } from "../db";
 import type { AuthedEnv, WorkerEnv } from "../env";
 import { ApiError } from "../http";
 import { zJson, zQuery } from "../validation";
 import { requireUser } from "./middleware";
 import { openPasswordLink } from "./password-links";
-import { hashPassword, verifyPassword } from "./password";
+import { checkCredentials } from "./login";
+import { hashPassword } from "./password";
 import { endSession, startSession } from "./session";
-
-const MAX_FAILURES = 10;
-const FAILURE_WINDOW_MS = 15 * 60 * 1000;
 
 type Invite = { id: string; email: string; role: "admin" | "member"; expires_at: string; consumed_at: string | null };
 
 export const authRoutes = new Hono<WorkerEnv>()
   .post("/login", zJson(z.object({ username: z.string().min(1).max(255), password: z.string().min(1).max(255) })), async (c) => {
-    const { password } = c.req.valid("json");
-    const username = c.req.valid("json").username.trim().toLowerCase();
-    const db = c.env.DB;
-    const since = new Date(Date.now() - FAILURE_WINDOW_MS).toISOString();
-    const failures = await first<{ n: number }>(db, "SELECT COUNT(*) AS n FROM login_failures WHERE username = ? AND attempted_at >= ?", [username, since]);
-    if ((failures?.n ?? 0) >= MAX_FAILURES) throw new ApiError(429, "Too many attempts. Try again in 15 minutes.");
-
-    const user = await first<{ id: string; password_hash: string; is_active: number }>(
-      db,
-      "SELECT id, password_hash, is_active FROM users WHERE username = ?",
-      [username],
-    );
-    if (!user || !user.is_active || !(await verifyPassword(password, user.password_hash, c.env.PASSWORD_PEPPER))) {
-      await db.batch([
-        db.prepare("INSERT INTO login_failures (username, attempted_at) VALUES (?, ?)").bind(username, nowIso()),
-        db.prepare("DELETE FROM login_failures WHERE attempted_at < ?").bind(since),
-      ]);
-      throw new ApiError(401, "Invalid username or password");
-    }
-    await run(db, "DELETE FROM login_failures WHERE username = ?", [username]);
+    const { username, password } = c.req.valid("json");
+    const user = await checkCredentials(c.env, username, password);
     await startSession(c, user.id, c.env.SESSION_SECRET);
     return c.json({ ok: true });
   })

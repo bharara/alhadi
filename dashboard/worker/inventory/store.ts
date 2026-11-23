@@ -2,7 +2,7 @@ import { first, parseJson } from "../db";
 import type { Env, SessionUser } from "../env";
 import { ApiError } from "../http";
 import { autoTitle, type CONTACT_KINDS, type INVENTORY_STATUSES, type InventoryType, type WEBSITE_PROJECT_SLUGS } from "./fields";
-import { photoUrls } from "./photo-storage";
+import { photoUrls } from "../media/storage";
 
 export type ItemRow = {
   id: string;

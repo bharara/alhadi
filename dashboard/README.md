@@ -28,6 +28,29 @@ The public feed (`worker/website/public.ts`) selects only the website columns, s
 
 A change to a published property (or to a field it shows, or the website settings) marks the site for rebuild. A 5-minute cron starts one Pages build once edits have settled for 2 minutes, so changes appear within a few minutes. Admins can also click "Rebuild site now" on the Website page. The build uses `PAGES_API_TOKEN` and builds `LANDING_BRANCH`.
 
+## Articles
+
+Dashboard → Articles writes the posts at `/articles/<slug>/` (table `articles`). Members write drafts; only admins publish or change published articles. Images go to R2 under `articles/<id>/` and are deleted with the article.
+
+`worker/articles/sanitize.ts` is the only guard between the editor and the public site: the landing build renders `body_html` as-is.
+
+## MCP server (AI connectors)
+
+Admins can connect an AI app such as Claude to the CRM: in claude.ai, add a custom connector with the URL `https://crm.bestbuilderdeveloper.com/mcp`, then sign in with your dashboard username and password.
+
+**Tools** (`worker/mcp/tools.ts`):
+- Read: `describe_data`, `query_sql` (one read-only SELECT, at most 200 rows), `search_prospects`, `get_prospect`, `list_articles`, `get_article`.
+- Add: `add_prospect` (never changes an existing lead with the same phone) and `create_article` (a draft unless `publish` is true; the body is sanitised like the editor's).
+- There are no update or delete tools on purpose.
+
+**Access:**
+- Only active admins can connect. Tokens act as that admin and every call is re-checked against their account, so deactivating them, removing admin, or changing their password disconnects their apps on the next call.
+- The OAuth server (`worker/mcp/oauth.ts`) is stateless: client IDs, codes and tokens are JWTs signed with a key derived from `SESSION_SECRET`. Rotating it disconnects every app (and signs everyone out). Access tokens last an hour and refresh tokens 30 days.
+- Being stateless, an authorization code works more than once within its 5 minutes and refresh tokens don't rotate; PKCE and the per-call account check are what bound that.
+- Sign-ins share the dashboard's lockout (10 failures in 15 minutes).
+- `query_sql` can't read credential tables (`users`, invites, password links, login failures). The `team_members` view gives usernames and roles instead.
+- Every tool call is logged as an `[mcp:audit]` line with the admin, the app and the input. Query them with `cf observability telemetry query`.
+
 ## Site analytics
 
 The landing site sends an event for each pageview and each enquiry (WhatsApp tap, phone tap, lead form) to `bestbuilderdeveloper.com/a/e`. That path is routed to this Worker so it stays first-party.
@@ -55,6 +78,7 @@ The hash format is in `worker/auth/password.ts` and must be computed with the sa
 
 For SPA hot reload, run `pnpm dev:vite` (port 5173) alongside `wrangler dev`; it proxies `/api` to the Worker.
 To point the landing site at the local Worker, run `PUBLIC_LISTINGS_API=http://localhost:8787 pnpm dev` in `landing/`.
+For a local build that converts images served from your machine, also set `LOCAL_MEDIA_HOST=localhost`.
 
 `pnpm check` runs the typecheck and the production build.
 

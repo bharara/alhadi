@@ -16,7 +16,8 @@
   "assets": {
     "directory": "dist",
     "not_found_handling": "single-page-application",
-    "run_worker_first": ["/api/*", "/a/*"]
+    // The Worker also answers MCP and its OAuth endpoints; everything else is the SPA.
+    "run_worker_first": ["/api/*", "/a/*", "/mcp", "/mcp/*", "/authorize", "/token", "/register", "/.well-known/*"]
   },
   "d1_databases": [
     {

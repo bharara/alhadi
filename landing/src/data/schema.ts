@@ -13,6 +13,7 @@ export function organization(site: URL, logo: string) {
     logo,
     image: logo,
     telephone: contact.phoneTel,
+    email: contact.email,
     areaServed: { '@type': 'City', name: 'Faisalabad' },
     address: { '@type': 'PostalAddress', addressLocality: 'Faisalabad', addressRegion: 'Punjab', addressCountry: 'PK' },
     sameAs: [contact.facebook, contact.instagram, contact.group],

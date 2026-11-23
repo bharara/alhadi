@@ -44,6 +44,7 @@ const wa = `https://wa.me/${contact.whatsapp}`;
         <ul>
           <li><a href={`tel:${contact.phoneTel}`}>UAN {contact.phoneDisplay}</a></li>
           <li><a href={wa} target="_blank" rel="noopener">WhatsApp</a></li>
+          <li><a href={`mailto:${contact.email}`}>{contact.email}</a></li>
           <li>{contact.city}</li>
         </ul>
       </div>

@@ -1,0 +1,350 @@
+---
+import type { GetStaticPaths } from 'astro';
+import { getImage } from 'astro:assets';
+import Base from '../../layouts/Base.astro';
+import Nav from '../../components/Nav.astro';
+import Footer from '../../components/Footer.astro';
+import ArticleCard from '../../components/ArticleCard.astro';
+import logo from '../../assets/logo.png';
+import { brand, contact, projects, waLink } from '../../data/site';
+import { shareImage } from '../../data/listings';
+import { articlePath, articles, formatDate, readingMinutes, summaryOf, wordCount, type Article } from '../../data/articles';
+import { orgId, organization } from '../../data/schema';
+
+export const getStaticPaths = (() => articles.map((article) => ({ params: { slug: article.slug }, props: { article } }))) satisfies GetStaticPaths;
+
+interface Props {
+  article: Article;
+}
+
+const { article: a } = Astro.props;
+const site = Astro.site!;
+const url = new URL(articlePath(a), site).href;
+const project = projects.find((p) => p.slug === a.project_slug);
+const logoUrl = new URL((await getImage({ src: logo, width: 360, format: 'png' })).src, site).href;
+const share = a.cover ? await shareImage(a.cover) : undefined;
+const description = a.seo_description ?? summaryOf(a, 158);
+const updated = a.updated_at.slice(0, 10) !== a.published_at.slice(0, 10);
+const related = [...articles.filter((x) => x.id !== a.id && a.project_slug && x.project_slug === a.project_slug), ...articles.filter((x) => x.id !== a.id && (!a.project_slug || x.project_slug !== a.project_slug))].slice(0, 3);
+const askHref = waLink(`Assalam o Alaikum, I read "${a.title}" on your website and have a question. ${url}`);
+
+const crumbs = [
+  { name: 'Home', href: '/' },
+  { name: 'Articles', href: '/articles/' },
+  { name: a.title, href: articlePath(a) },
+];
+
+const jsonLd = {
+  '@context': 'https://schema.org',
+  '@graph': [
+    organization(site, logoUrl),
+    {
+      '@type': 'BlogPosting',
+      '@id': `${url}#article`,
+      mainEntityOfPage: { '@type': 'WebPage', '@id': url },
+      url,
+      headline: a.title.slice(0, 110),
+      description,
+      ...(share && { image: { '@type': 'ImageObject', url: new URL(share.src, site).href, width: share.width, height: share.height } }),
+      datePublished: a.published_at,
+      dateModified: a.updated_at,
+      author: a.author_name ? { '@type': 'Person', name: a.author_name } : { '@id': orgId(site) },
+      publisher: { '@id': orgId(site) },
+      inLanguage: 'en-PK',
+      wordCount: wordCount(a),
+      timeRequired: `PT${readingMinutes(a)}M`,
+      ...(a.tags.length && { keywords: a.tags.join(', ') }),
+      ...(project && { about: { '@type': 'Place', name: `${project.fullName}, Faisalabad`, url: new URL(`/${project.slug}/`, site).href } }),
+      isPartOf: { '@type': 'Blog', '@id': new URL('/articles/#blog', site).href },
+    },
+    {
+      '@type': 'BreadcrumbList',
+      itemListElement: crumbs.map((c, i) => ({ '@type': 'ListItem', position: i + 1, name: c.name, item: new URL(c.href, site).href })),
+    },
+  ],
+};
+---
+
+<Base title={`${a.seo_title ?? a.title} | ${brand}`} description={description} image={share} jsonLd={jsonLd} ogType="article">
+  <Fragment slot="head">
+    <meta property="article:published_time" content={a.published_at} />
+    <meta property="article:modified_time" content={a.updated_at} />
+    {a.tags.map((t) => <meta property="article:tag" content={t} />)}
+  </Fragment>
+  <header class="wrap"><Nav /></header>
+  <main>
+    <article class="post" aria-labelledby="post-title">
+      <header class="wrap head">
+        <nav class="crumbs" aria-label="Breadcrumb">
+          <ol>
+            {crumbs.slice(0, -1).map((c) => <li><a href={c.href}>{c.name}</a></li>)}
+          </ol>
+        </nav>
+        {a.tags.length > 0 && <p class="kicker">{a.tags.join(' · ')}</p>}
+        <h1 id="post-title">{a.title}</h1>
+        {a.excerpt && <p class="dek">{a.excerpt}</p>}
+        <p class="meta">
+          By {a.author_name ?? brand} · <time datetime={a.published_at}>{formatDate(a.published_at)}</time>
+          {updated && <> · Updated <time datetime={a.updated_at}>{formatDate(a.updated_at)}</time></>} · {readingMinutes(a)} min read
+        </p>
+      </header>
+
+      {
+        a.cover && (
+          <figure class="wrap cover">
+            <img
+              src={a.cover.full}
+              srcset={`${a.cover.thumb} 600w, ${a.cover.full} 1600w`}
+              sizes="(max-width: 1100px) 100vw, 1100px"
+              alt={a.cover.alt ?? ''}
+              width={a.cover.width}
+              height={a.cover.height}
+              fetchpriority="high"
+            />
+          </figure>
+        )
+      }
+
+      <div class="wrap body-wrap">
+        <div class="prose" set:html={a.body_html} />
+
+        <aside class="cta" aria-label="Talk to us">
+          <span class="kicker">Questions?</span>
+          <p>Our advisors can answer anything in this article, share today's prices or arrange a free site visit.</p>
+          <div class="row">
+            <a class="btn btn-gold" href={askHref} target="_blank" rel="noopener">Ask on WhatsApp</a>
+            <a class="btn btn-outline" href={`tel:${contact.phoneTel}`}>Call {contact.phoneDisplay}</a>
+          </div>
+          {project && <a class="proj" href={`/${project.slug}/`}>Explore {project.fullName} →</a>}
+        </aside>
+      </div>
+    </article>
+
+    {
+      related.length > 0 && (
+        <section class="more" aria-labelledby="more-title">
+          <div class="wrap">
+            <span class="kicker">Keep reading</span>
+            <h2 id="more-title">
+              More <span class="gold">articles</span>
+            </h2>
+            <div class="grid">
+              {related.map((x) => (
+                <ArticleCard article={x} />
+              ))}
+            </div>
+          </div>
+        </section>
+      )
+    }
+  </main>
+  <Footer />
+</Base>
+
+<style>
+  .head {
+    padding-top: 50px;
+    padding-bottom: 40px;
+  }
+  .head > :not(.crumbs) {
+    max-width: 960px;
+  }
+  .crumbs ol {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 10px;
+    list-style: none;
+    font-size: 13px;
+    color: var(--mut);
+    margin-bottom: 26px;
+  }
+  .crumbs li + li::before {
+    content: '/';
+    margin-right: 10px;
+    color: var(--gold);
+  }
+  .crumbs a:hover {
+    color: var(--gold-2);
+  }
+  h1 {
+    font-weight: 800;
+    font-size: clamp(32px, 5vw, 64px);
+    line-height: 0.98;
+    margin: 16px 0 20px;
+    overflow-wrap: anywhere;
+  }
+  .dek {
+    color: #cfc8bb;
+    font-size: 20px;
+    line-height: 1.6;
+  }
+  .meta {
+    margin-top: 22px;
+    font-size: 14px;
+    color: var(--mut);
+  }
+  .cover img {
+    width: 100%;
+    height: auto;
+    max-height: 640px;
+    object-fit: cover;
+    border-radius: 10px;
+    border: 1px solid var(--line);
+  }
+  .body-wrap {
+    display: grid;
+    grid-template-columns: minmax(0, 720px) 1fr;
+    gap: 70px;
+    align-items: start;
+    padding-top: 56px;
+    padding-bottom: 100px;
+  }
+
+  /* The article body: only the tags dashboard/worker/articles/sanitize.ts keeps. */
+  .prose {
+    color: #d8d2c6;
+    font-size: 18px;
+    line-height: 1.8;
+  }
+  .prose :global(> * + *) {
+    margin-top: 1.1em;
+  }
+  .prose :global(h2),
+  .prose :global(h3),
+  .prose :global(h4) {
+    color: var(--txt);
+    text-transform: none;
+    letter-spacing: -0.01em;
+    line-height: 1.2;
+  }
+  .prose :global(h2) {
+    font-size: 30px;
+    margin-top: 1.8em;
+  }
+  .prose :global(h3) {
+    font-size: 23px;
+    margin-top: 1.5em;
+  }
+  .prose :global(h4) {
+    font-size: 19px;
+    margin-top: 1.4em;
+  }
+  .prose :global(strong),
+  .prose :global(b) {
+    color: var(--txt);
+  }
+  .prose :global(a) {
+    color: var(--gold-2);
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+  .prose :global(ul),
+  .prose :global(ol) {
+    padding-left: 1.4em;
+  }
+  .prose :global(li + li) {
+    margin-top: 0.4em;
+  }
+  .prose :global(li::marker) {
+    color: var(--gold);
+  }
+  .prose :global(blockquote) {
+    border-left: 2px solid var(--gold);
+    padding: 4px 0 4px 24px;
+    font-family: var(--disp);
+    font-size: 22px;
+    line-height: 1.5;
+    color: var(--gold-2);
+  }
+  .prose :global(hr) {
+    border: 0;
+    border-top: 1px solid var(--line);
+    margin: 2.4em 0;
+  }
+  .prose :global(img) {
+    width: 100%;
+    height: auto;
+    border-radius: 8px;
+    border: 1px solid var(--line);
+    margin-top: 1.6em;
+    margin-bottom: 0.6em;
+  }
+  .prose :global(code) {
+    font-size: 0.9em;
+    background: var(--card);
+    padding: 2px 6px;
+    border-radius: 4px;
+  }
+
+  .cta {
+    position: sticky;
+    top: 30px;
+    background: var(--card);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 30px;
+  }
+  .cta p {
+    color: var(--mut);
+    margin: 12px 0 22px;
+    line-height: 1.6;
+  }
+  .row {
+    display: grid;
+    gap: 10px;
+  }
+  .proj {
+    display: inline-block;
+    margin-top: 18px;
+    color: var(--gold-2);
+    font-size: 14px;
+  }
+  .more {
+    padding: 100px 0;
+    border-top: 1px solid var(--line);
+    background: var(--bg-2);
+  }
+  .more h2 {
+    font-size: clamp(36px, 4.4vw, 56px);
+    line-height: 0.95;
+    margin: 14px 0 32px;
+  }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 18px;
+  }
+
+  @media (max-width: 1000px) {
+    .body-wrap {
+      grid-template-columns: 1fr;
+      gap: 40px;
+    }
+    .cta {
+      position: static;
+    }
+    .grid {
+      grid-template-columns: 1fr 1fr;
+    }
+  }
+  @media (max-width: 900px) {
+    .head {
+      padding-top: 24px;
+    }
+    .prose {
+      font-size: 17px;
+    }
+    .body-wrap {
+      padding-top: 36px;
+      padding-bottom: 72px;
+    }
+    .more {
+      padding: 72px 0;
+    }
+  }
+  @media (max-width: 560px) {
+    .grid {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>

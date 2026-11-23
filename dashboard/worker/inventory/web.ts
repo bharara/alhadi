@@ -4,7 +4,7 @@ import { ApiError } from "../http";
 import { optionalText } from "../validation";
 import { WEBSITE_PROJECTS, WEBSITE_PROJECT_SLUGS, type InventoryType, type WebsiteProjectSlug } from "./fields";
 
-const SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+export const SLUG = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
 export const webFields = {
   project_slug: z.enum(WEBSITE_PROJECT_SLUGS).nullable(),
@@ -22,13 +22,14 @@ export const webFields = {
 
 type PublishTarget = { id: string; town: string; size: string; type: InventoryType; block: string | null; project_slug: string | null; slug: string | null; published_at: string | null };
 
-const slugify = (value: string) =>
+export const slugify = (value: string, fallback = "property") =>
   value
     .toLowerCase()
     .normalize("NFKD")
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "")
-    .slice(0, 100) || "property";
+    .slice(0, 100)
+    .replace(/-+$/, "") || fallback;
 
 async function uniqueSlug(db: Db, base: string, exceptId: string): Promise<string> {
   for (let n = 1; ; n++) {

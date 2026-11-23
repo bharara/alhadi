@@ -1,0 +1,142 @@
+---
+import Base from '../../layouts/Base.astro';
+import Nav from '../../components/Nav.astro';
+import Footer from '../../components/Footer.astro';
+import ArticleCard from '../../components/ArticleCard.astro';
+import { articlePath, articles } from '../../data/articles';
+import { shareImage } from '../../data/listings';
+import { brand } from '../../data/site';
+import { orgId } from '../../data/schema';
+
+const site = Astro.site!;
+const url = new URL('/articles/', site).href;
+const cover = articles.find((a) => a.cover)?.cover ?? undefined;
+
+const jsonLd = {
+  '@context': 'https://schema.org',
+  '@graph': [
+    {
+      '@type': 'Blog',
+      '@id': `${url}#blog`,
+      name: `${brand} articles`,
+      url,
+      inLanguage: 'en-PK',
+      publisher: { '@id': orgId(site) },
+      blogPost: articles.map((a) => ({ '@type': 'BlogPosting', headline: a.title, url: new URL(articlePath(a), site).href, datePublished: a.published_at })),
+    },
+    {
+      '@type': 'BreadcrumbList',
+      itemListElement: [
+        { '@type': 'ListItem', position: 1, name: 'Home', item: site.href },
+        { '@type': 'ListItem', position: 2, name: 'Articles', item: url },
+      ],
+    },
+  ],
+};
+---
+
+<Base
+  title="Property Articles & Guides, Faisalabad | Best Builders & Developers"
+  description="Guides to buying, building and investing in Faisalabad property, with news from Sitara Villas, Abdullah Gardens and City Walk."
+  image={cover && (await shareImage(cover))}
+  jsonLd={jsonLd}
+>
+  <header class="wrap"><Nav /></header>
+  <main>
+    <section class="wrap intro" aria-labelledby="articles-title">
+      <nav class="crumbs" aria-label="Breadcrumb">
+        <ol>
+          <li><a href="/">Home</a></li>
+          <li aria-current="page">Articles</li>
+        </ol>
+      </nav>
+      <span class="kicker">Guides &amp; news</span>
+      <h1 id="articles-title">Articles</h1>
+      <p class="lead">Advice on buying, building and investing in Faisalabad property, and updates from our projects on the Canal corridor.</p>
+    </section>
+    <section class="wrap list" aria-label="All articles">
+      {
+        articles.length > 0 ? (
+          <div class="grid">
+            {articles.map((article, i) => (
+              <ArticleCard article={article} eager={i < 3} />
+            ))}
+          </div>
+        ) : (
+          <p class="empty">Our first articles are on the way. In the meantime, <a href="/#projects">explore our projects</a>.</p>
+        )
+      }
+    </section>
+  </main>
+  <Footer />
+</Base>
+
+<style>
+  .intro {
+    padding-top: 50px;
+    padding-bottom: 50px;
+  }
+  .crumbs ol {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 10px;
+    list-style: none;
+    font-size: 13px;
+    color: var(--mut);
+    margin-bottom: 26px;
+  }
+  .crumbs li + li::before {
+    content: '/';
+    margin-right: 10px;
+    color: var(--gold);
+  }
+  .crumbs a:hover {
+    color: var(--gold-2);
+  }
+  h1 {
+    font-weight: 800;
+    font-size: clamp(44px, 8vw, 96px);
+    line-height: 0.92;
+    margin: 16px 0 20px;
+  }
+  .lead {
+    color: #cfc8bb;
+    font-size: 18px;
+    line-height: 1.7;
+    max-width: 640px;
+  }
+  .list {
+    padding-bottom: 110px;
+  }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 18px;
+  }
+  .empty {
+    color: var(--mut);
+    font-size: 17px;
+  }
+  .empty a {
+    color: var(--gold-2);
+  }
+  @media (max-width: 1000px) {
+    .grid {
+      grid-template-columns: 1fr 1fr;
+    }
+  }
+  @media (max-width: 900px) {
+    .intro {
+      padding-top: 24px;
+      padding-bottom: 32px;
+    }
+    .list {
+      padding-bottom: 72px;
+    }
+  }
+  @media (max-width: 560px) {
+    .grid {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>

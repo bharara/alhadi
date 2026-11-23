@@ -10,13 +10,15 @@ interface Props {
   image?: ShareImage;
   jsonLd?: object;
   noindex?: boolean;
+  /** Open Graph type; "article" for articles. */
+  ogType?: 'website' | 'article';
   /** Prefilled message for the floating WhatsApp button. */
   whatsappText?: string;
   /** The property this page is about; analytics credits its views and enquiries to it. */
   property?: string;
 }
 
-const { title, description, image = { src: '/og/home.jpg', width: 1200, height: 630 }, jsonLd, noindex = false, whatsappText, property } = Astro.props;
+const { title, description, image = { src: '/og/home.jpg', width: 1200, height: 630 }, jsonLd, noindex = false, ogType = 'website', whatsappText, property } = Astro.props;
 const site = Astro.site!;
 const canonical = new URL(Astro.url.pathname, site).href;
 const ogImage = new URL(image.src, site).href;
@@ -40,7 +42,7 @@ const ogImage = new URL(image.src, site).href;
     <meta name="theme-color" content="#070707" />
     <meta name="geo.region" content="PK-PB" />
     <meta name="geo.placename" content="Faisalabad" />
-    <meta property="og:type" content="website" />
+    <meta property="og:type" content={ogType} />
     <meta property="og:site_name" content={brand} />
     <meta property="og:locale" content="en_PK" />
     <meta property="og:title" content={title} />
@@ -59,6 +61,7 @@ const ogImage = new URL(image.src, site).href;
       href="https://fonts.googleapis.com/css2?family=Syne:wght@500;600;700;800&family=Manrope:wght@300;400;500;600&display=swap"
       rel="stylesheet"
     />
+    <slot name="head" />
     {jsonLd && <script type="application/ld+json" set:html={JSON.stringify(jsonLd).replace(/</g, '\\u003c')} />}
   </head>
   <body data-property={property}>

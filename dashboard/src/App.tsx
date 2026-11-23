@@ -5,6 +5,7 @@ import { AcceptInvitePage, LoginPage, SetPasswordPage } from "@/auth/AuthPages";
 import { api, SIGNED_OUT_EVENT, unwrap, type Me } from "@/lib/api";
 import { Spinner } from "@/lib/hooks";
 import { AnalyticsPage } from "@/pages/analytics/AnalyticsPage";
+import { ArticlesPage } from "@/pages/articles/ArticlesPage";
 import { SiteAnalyticsPage } from "@/pages/site-analytics/SiteAnalyticsPage";
 import { DashboardPage } from "@/pages/dashboard/DashboardPage";
 import { InventoryDetailPage } from "@/pages/inventory/InventoryDetailPage";
@@ -17,6 +18,9 @@ import { UsersPage } from "@/pages/users/UsersPage";
 import { WebsitePage } from "@/pages/website/WebsitePage";
 import { SessionProvider } from "@/session";
 import { Shell } from "@/shell/Shell";
+
+// The editor carries TipTap, so it loads only when an article is opened.
+const ArticleEditorPage = React.lazy(() => import("@/pages/articles/ArticleEditorPage").then((m) => ({ default: m.ArticleEditorPage })));
 
 type Auth = { status: "loading" } | { status: "signed-out" } | { status: "signed-in"; user: Me };
 
@@ -72,6 +76,8 @@ function Root() {
               <Route path="inventory" element={<InventoryPage />} />
               <Route path="inventory/:inventoryId" element={<InventoryDetailPage />} />
               <Route path="website" element={<WebsitePage />} />
+              <Route path="articles" element={<ArticlesPage />} />
+              <Route path="articles/:articleId" element={<React.Suspense fallback={<Spinner className="py-32" />}><ArticleEditorPage /></React.Suspense>} />
               <Route path="site-analytics" element={<SiteAnalyticsPage />} />
               <Route path="analytics" element={<AnalyticsPage />} />
               <Route path="users" element={auth.user.role === "admin" ? <UsersPage /> : <Navigate to="/" replace />} />

@@ -3,6 +3,7 @@ import { parseJson } from "../db";
 import type { Env, WorkerEnv } from "../env";
 import { autoTitle, INVENTORY_TYPE_LABELS, WEBSITE_PROJECTS, type InventoryType } from "../inventory/fields";
 import { photoUrls } from "../inventory/photo-storage";
+import { publishedArticles } from "../articles/store";
 import { readWebsiteSettings } from "./settings";
 
 type PublicRow = {
@@ -80,4 +81,6 @@ async function publishedProperties(env: Env) {
 }
 
 // Read by the landing build, which renders every property section and page statically.
-export const publicRoutes = new Hono<WorkerEnv>().get("/listings/full", async (c) => c.json(await publishedProperties(c.env)));
+export const publicRoutes = new Hono<WorkerEnv>()
+  .get("/listings/full", async (c) => c.json(await publishedProperties(c.env)))
+  .get("/articles", async (c) => c.json({ articles: await publishedArticles(c.env) }));

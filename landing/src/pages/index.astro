@@ -7,6 +7,8 @@ import ProjectPanel from '../components/ProjectPanel.astro';
 import Film from '../components/Film.astro';
 import Listings from '../components/Listings.astro';
 import Group from '../components/Group.astro';
+import About from '../components/About.astro';
+import Articles from '../components/Articles.astro';
 import Footer from '../components/Footer.astro';
 import logo from '../assets/logo.png';
 import { group, projects, stats } from '../data/site';
@@ -24,12 +26,38 @@ const logoUrl = new URL((await getImage({ src: logo, width: 360, format: 'png' }
   <Hero />
   <main>
     <StatsTicker stats={stats} availability="Plots available now in Sitara Villas, Abdullah Gardens & City Walk" />
-    <div id="projects">
+    <About />
+    <section id="projects" aria-labelledby="projects-title">
+      <div class="projects-head">
+        <div class="wrap">
+          <span class="kicker">Our projects</span>
+          <h2 id="projects-title">Three projects on the<br /><span class="gold">Canal corridor.</span></h2>
+        </div>
+      </div>
       {projects.map((project, index) => <ProjectPanel project={project} index={index} />)}
-    </div>
+    </section>
     <Listings mode="home" />
     <Film />
+    <Articles />
     <Group companies={group} />
   </main>
   <Footer />
 </Base>
+
+<style>
+  .projects-head {
+    padding: 120px 0 56px;
+    border-top: 1px solid var(--line);
+    border-bottom: 1px solid var(--line);
+  }
+  .projects-head h2 {
+    font-size: clamp(36px, 4.4vw, 56px);
+    line-height: 0.95;
+    margin-top: 14px;
+  }
+  @media (max-width: 900px) {
+    .projects-head {
+      padding: 72px 0 36px;
+    }
+  }
+</style>

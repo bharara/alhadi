@@ -7,7 +7,7 @@ const THUMB = 600;
 type Variant = { blob: Blob; width: number; height: number };
 
 /** Resizes in the browser so the Worker only stores files: a ≤1600px full image and a ≤600px thumbnail, both WebP. */
-async function preparePhoto(file: File): Promise<{ full: Variant; thumb: Variant }> {
+export async function preparePhoto(file: File): Promise<{ full: Variant; thumb: Variant }> {
   let bitmap: ImageBitmap;
   try {
     bitmap = await createImageBitmap(file, { imageOrientation: "from-image" });

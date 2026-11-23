@@ -28,6 +28,16 @@ The public feed (`worker/website/public.ts`) selects only the website columns, s
 
 A change to a published property (or to a field it shows, or the website settings) marks the site for rebuild. A 5-minute cron starts one Pages build once edits have settled for 2 minutes, so changes appear within a few minutes. Admins can also click "Rebuild site now" on the Website page. The build uses `PAGES_API_TOKEN` and builds `LANDING_BRANCH`.
 
+## Articles
+
+Dashboard → Articles writes the posts published at `/articles/<slug>/`. Each is one row in `articles` (migration `0006`).
+- The body is written in a TipTap editor (`src/pages/articles/RichEditor.tsx`) with headings, lists, quotes, links and images. Images can also be pasted or dropped in.
+- On save the Worker sanitises the HTML to a fixed set of tags (`worker/articles/sanitize.ts`). The landing build renders it as-is, so that file is the only guard.
+- Cover and in-text images are resized in the browser like property photos and stored in R2 under `articles/<id>/`. Deleting an article deletes the folder.
+- Anyone can write drafts. Only admins can publish, unpublish, edit a live article or delete one. Publishing, or editing a published article, marks the site for rebuild.
+
+The landing build reads `GET /api/public/articles` and renders `/articles/`, each article page (with `BlogPosting` JSON-LD) and the home page Articles section, which shows featured articles first.
+
 ## Site analytics
 
 The landing site sends an event for each pageview and each enquiry (WhatsApp tap, phone tap, lead form) to `bestbuilderdeveloper.com/a/e`. That path is routed to this Worker so it stays first-party.
@@ -55,6 +65,7 @@ The hash format is in `worker/auth/password.ts` and must be computed with the sa
 
 For SPA hot reload, run `pnpm dev:vite` (port 5173) alongside `wrangler dev`; it proxies `/api` to the Worker.
 To point the landing site at the local Worker, run `PUBLIC_LISTINGS_API=http://localhost:8787 pnpm dev` in `landing/`.
+For a local build that converts images served from your machine, also set `LOCAL_MEDIA_HOST=localhost`.
 
 `pnpm check` runs the typecheck and the production build.
 

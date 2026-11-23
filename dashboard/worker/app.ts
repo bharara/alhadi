@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 import { analyticsRoutes } from "./analytics/routes";
+import { articleRoutes } from "./articles/routes";
 import { requireUser } from "./auth/middleware";
 import { authRoutes, meRoutes, passwordLinkRoutes } from "./auth/routes";
 import type { AuthedEnv, WorkerEnv } from "./env";
@@ -20,6 +21,7 @@ const crm = new Hono<AuthedEnv>()
   .route("/dashboard", reportRoutes)
   .route("/inventory", inventoryRoutes)
   .route("/website", websiteRoutes)
+  .route("/articles", articleRoutes)
   .route("/analytics", analyticsRoutes)
   .route("/site-analytics", siteAnalyticsRoutes)
   .route("/user-management", userManagementRoutes);

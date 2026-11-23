@@ -49,6 +49,7 @@ export const contact = {
   phoneDisplay: '0311-073-1111',
   phoneTel: '+923110731111',
   whatsapp: '923110731111',
+  email: 'sales@bestbuilderdeveloper.com',
   city: 'Faisalabad, Pakistan',
   facebook: 'https://www.facebook.com/Bestbuildersdevelopers/',
   instagram: 'https://www.instagram.com/best_builders_developers/',
